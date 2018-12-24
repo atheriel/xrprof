@@ -48,14 +48,16 @@ int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   return 0;
 }
 
-RCNTXT * get_context(pid_t pid, void *addr) {
-  if (!addr) return NULL; /* Makes loops easier. */
+void copy_context(pid_t pid, void *addr, RCNTXT **data) {
+  if (!addr) { /* Makes loops easier. */
+    goto fail;
+  }
 
   size_t len = sizeof(RCNTXT);
-  RCNTXT *data = (RCNTXT *) malloc(len);
+  *data = (RCNTXT *) realloc(*data, len);
 
   struct iovec local[1];
-  local[0].iov_base = data;
+  local[0].iov_base = *data;
   local[0].iov_len = len;
 
   struct iovec remote[1];
@@ -65,25 +67,29 @@ RCNTXT * get_context(pid_t pid, void *addr) {
   size_t bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
   if (bytes < 0) {
     perror("process_vm_readv");
-    free(data);
-    data = NULL;
+    goto fail;
   } else if (bytes < len) {
     fprintf(stderr, "partial read of RCNTXT data\n");
-    free(data);
-    data = NULL;
+    goto fail;
   }
+  return;
 
-  return data;
+ fail:
+  free(*data);
+  data = NULL;
+  return;
 }
 
-SEXP get_sexp(pid_t pid, void *addr) {
-  if (!addr) return NULL; /* Makes loops easier. */
+void copy_sexp(pid_t pid, void *addr, SEXP *data) {
+  if (!addr) { /* Makes loops easier. */
+    goto fail;
+  }
 
   size_t len = sizeof(SEXPREC);
-  SEXP data = (SEXP) malloc(len);
+  *data = (SEXP) realloc(*data, len);
 
   struct iovec local[1];
-  local[0].iov_base = data;
+  local[0].iov_base = *data;
   local[0].iov_len = len;
 
   struct iovec remote[1];
@@ -93,15 +99,17 @@ SEXP get_sexp(pid_t pid, void *addr) {
   size_t bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
   if (bytes < 0) {
     perror("process_vm_readv");
-    free(data);
-    data = NULL;
+    goto fail;
   } else if (bytes < len) {
     fprintf(stderr, "partial read of SEXP data\n");
-    free(data);
-    data = NULL;
+    goto fail;
   }
+  return;
 
-  return data;
+ fail:
+  free(*data);
+  data = NULL;
+  return;
 }
 
 int main(int argc, char **argv) {
@@ -148,6 +156,7 @@ int main(int argc, char **argv) {
     code++;
     goto done;
   }
+  free(path);
 
   uintptr_t local_addr;
   if (find_libR(getpid(), &path, &local_addr) < 0) {
@@ -156,6 +165,7 @@ int main(int argc, char **argv) {
     goto done;
   }
   printf("Found %s at %p in pid %d.\n", path, (void *) local_addr, getpid());
+  free(path);
 
   void* context_addr = dlsym(handle, "R_GlobalContext");
   if (!context_addr) {
@@ -167,6 +177,8 @@ int main(int argc, char **argv) {
   
   ptrdiff_t context_offset = (uintptr_t) context_addr - local_addr;
 
+  dlclose(handle);
+
   long context_ptr = ptrace(PTRACE_PEEKTEXT, pid, addr + context_offset, NULL);
   if (context_ptr < 0) {
     perror("ptrace PEEKTEXT");
@@ -175,15 +187,16 @@ int main(int argc, char **argv) {
   }
   printf("R_GlobalContext contains %p in pid %d.\n", (void *) context_ptr, pid);
 
-  RCNTXT *cptr;
+  RCNTXT *cptr = NULL;
+  SEXP call = NULL, fun = NULL, name = NULL;
   int failsafe = 0;
   addr = (uintptr_t) context_ptr;
   printf("Stack:\n");
   char stackbuff[1024];
   stackbuff[0] = '\0';
 
-  for (cptr = get_context(pid, (void *) context_ptr); cptr;
-       cptr = get_context(pid, (void *) cptr->nextcontext)) {
+  for (copy_context(pid, (void *) context_ptr, &cptr); cptr;
+       copy_context(pid, (void *) cptr->nextcontext, &cptr)) {
 
     if (failsafe > MAX_STACK_DEPTH) {
       fprintf(stderr, "exceeded max stack depth (%d)\n", MAX_STACK_DEPTH);
@@ -202,7 +215,7 @@ int main(int argc, char **argv) {
       strcat(stackbuff, ";");
     }
 
-    SEXP call = get_sexp(pid, (void *) cptr->call);
+    copy_sexp(pid, (void *) cptr->call, &call);
     if (!call) {
       fprintf(stderr, "could not read call\n");
       code++;
@@ -211,16 +224,16 @@ int main(int argc, char **argv) {
 
     if (cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN) &&
         TYPEOF(call) == LANGSXP) {
-      SEXP fun = get_sexp(pid, (void *) CAR(call));
+      copy_sexp(pid, (void *) CAR(call), &fun);
       if (!fun) {
         fprintf(stderr, "lang item has no CAR\n");
         code++;
         goto done;
       }
       if (TYPEOF(fun) == SYMSXP) {
-        SEXP name = get_sexp(pid, (void *) PRINTNAME(fun));
         printf("    function: %s (%ld %ld)\n", CHAR(name), strlen(CHAR(name)), STDVEC_LENGTH(name));
         strncat(stackbuff, CHAR(name), STDVEC_LENGTH(name));
+        copy_sexp(pid, (void *) PRINTNAME(fun), &name);
       } else {
         printf("    TYPEOF(CAR(call)): %d\n", TYPEOF(fun));
       }
@@ -232,6 +245,10 @@ int main(int argc, char **argv) {
   }
 
   printf("\nFlamegraph format:\n%s\n", stackbuff);
+  free(cptr);
+  free(call);
+  free(fun);
+  free(name);
 
  done:
   if (ptrace(PTRACE_DETACH, pid, NULL, NULL)) {
