@@ -189,21 +189,21 @@ int main(int argc, char **argv) {
 
   RCNTXT *cptr = NULL;
   SEXP call = NULL, fun = NULL, name = NULL;
-  int failsafe = 0;
+  int depth = 0;
   addr = (uintptr_t) context_ptr;
-  printf("Stack:\n");
   char stackbuff[1024];
   stackbuff[0] = '\0';
+
+  printf("Format: bt\n\n");
 
   for (copy_context(pid, (void *) context_ptr, &cptr); cptr;
        copy_context(pid, (void *) cptr->nextcontext, &cptr)) {
 
-    if (failsafe > MAX_STACK_DEPTH) {
+    if (depth > MAX_STACK_DEPTH) {
       fprintf(stderr, "exceeded max stack depth (%d)\n", MAX_STACK_DEPTH);
       code++;
       goto done;
     }
-    failsafe++;
 
     printf("  %p: call=%p,callflag=%d,nextcontext=%p\n", (void *) addr,
            (void *) cptr->call, cptr->callflag, (void *) cptr->nextcontext);
@@ -211,7 +211,8 @@ int main(int argc, char **argv) {
     /* We're at the top level. */
     if (cptr->callflag == CTXT_TOPLEVEL) {
       strcat(stackbuff, " 1");
-    } else if (failsafe > 1) {
+      break; // Probably unnecessary.
+    } else if (depth > 0) {
       strcat(stackbuff, ";");
     }
 
@@ -231,9 +232,9 @@ int main(int argc, char **argv) {
         goto done;
       }
       if (TYPEOF(fun) == SYMSXP) {
-        printf("    function: %s (%ld %ld)\n", CHAR(name), strlen(CHAR(name)), STDVEC_LENGTH(name));
-        strncat(stackbuff, CHAR(name), STDVEC_LENGTH(name));
         copy_sexp(pid, (void *) PRINTNAME(fun), &name);
+        printf("#%d %15p in %s ()\n", depth, (void *) addr, CHAR(name));
+        strcat(stackbuff, CHAR(name));
       } else {
         printf("    TYPEOF(CAR(call)): %d\n", TYPEOF(fun));
       }
@@ -242,9 +243,10 @@ int main(int argc, char **argv) {
     }
 
     addr = (uintptr_t) cptr->nextcontext;
+    depth++;
   }
 
-  printf("\nFlamegraph format:\n%s\n", stackbuff);
+  printf("\nFormat: Flamegraph.pl\n\n%s\n", stackbuff);
   free(cptr);
   free(call);
   free(fun);
