@@ -17,6 +17,8 @@
 
 #define MAX_STACK_DEPTH 5
 #define MAX_LIBR_PATH_LEN 128
+#define DEFAULT_FREQ 100
+#define MAX_FREQ 1000
 
 int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   char maps_file[32];
@@ -114,16 +116,17 @@ void copy_sexp(pid_t pid, void *addr, SEXP *data) {
 
 void usage(const char *name) {
   // TODO: Add a long help message.
-  printf("Usage: %s [-v] -p <pid>\n", name);
+  printf("Usage: %s [-v] [-F <freq>] -p <pid>\n", name);
   return;
 }
 
 int main(int argc, char **argv) {
   pid_t pid = -1;
+  int freq = DEFAULT_FREQ;
   int verbose = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "hvp:")) != -1) {
+  while ((opt = getopt(argc, argv, "hvF:p:")) != -1) {
     switch (opt) {
     case 'h':
       usage(argv[0]);
@@ -142,6 +145,23 @@ int main(int argc, char **argv) {
       if (pid < 0) {
         fprintf(stderr, "cannot accept negative pids\n");
         return 1;
+      }
+      break;
+    case 'F':
+      freq = strtol(optarg, NULL, 10);
+      if ((errno == ERANGE && (freq == LONG_MAX || freq == LONG_MIN)) ||
+          (errno != 0 && freq == 0)) {
+        perror("strtol");
+        return 1;
+      }
+      if (freq < 0) {
+        freq = DEFAULT_FREQ;
+        fprintf(stderr, "Invalid frequency, falling back on the default %d.\n",
+                freq);
+      } else if (freq > MAX_FREQ) {
+        freq = MAX_FREQ;
+        fprintf(stderr, "Frequency cannot exceed %d, using that instead.\n",
+                freq);
       }
       break;
     default: /* '?' */
