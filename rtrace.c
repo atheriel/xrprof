@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/uio.h> /* for iovec, process_vm_readv */
 #include <sys/wait.h>
+#include <time.h>    /* for timespec */
 
 #include "rtrace.h"
 
@@ -19,6 +20,12 @@
 #define MAX_LIBR_PATH_LEN 128
 #define DEFAULT_FREQ 100
 #define MAX_FREQ 1000
+
+static volatile int should_trace = 1;
+
+void handle_sigint(int _sig) {
+  should_trace = 0;
+}
 
 int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   char maps_file[32];
@@ -177,6 +184,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  struct timespec sleep_spec;
+  sleep_spec.tv_nsec = 1000000 / freq;
+
   int code = 0;
 
   /* First, check that we can attach to the process. */
@@ -236,94 +246,111 @@ int main(int argc, char **argv) {
     goto done;
   }
   ptrdiff_t context_offset = (uintptr_t) context_addr - local_addr;
+  uintptr_t context_addr = addr + context_offset;
 
   dlclose(handle);
 
   /* Stop the tracee and read the R stack information. */
 
-  if (kill(pid, SIGSTOP) < 0) {
-    perror("kill SIGSTOP");
-    code++;
-    goto done;
-  }
-  if (waitpid(pid, 0, WSTOPPED) < 0) {
-    perror("waitpid");
-    code++;
-    goto done;
-  }
+  // Allow the user to stop the tracing with Ctrl-C.
+  signal(SIGINT, handle_sigint);
 
-  long context_ptr = ptrace(PTRACE_PEEKTEXT, pid, addr + context_offset, NULL);
-  if (context_ptr < 0) {
-    perror("ptrace PEEKTEXT");
-    code++;
-    goto done;
-  }
-  /* printf("R_GlobalContext contains %p in pid %d.\n", (void *) context_ptr, pid); */
-
-  RCNTXT *cptr = NULL;
-  SEXP call = NULL, fun = NULL, name = NULL;
-  int depth = 0;
-  addr = (uintptr_t) context_ptr;
-  char stackbuff[1024];
-  stackbuff[0] = '\0';
-
-  printf("Format: bt\n\n");
-
-  for (copy_context(pid, (void *) context_ptr, &cptr); cptr;
-       copy_context(pid, (void *) cptr->nextcontext, &cptr)) {
-
-    if (depth > MAX_STACK_DEPTH) {
-      fprintf(stderr, "exceeded max stack depth (%d)\n", MAX_STACK_DEPTH);
+  while (should_trace) {
+    if (kill(pid, SIGSTOP) < 0) {
+      perror("kill SIGSTOP");
+      code++;
+      goto done;
+    }
+    if (waitpid(pid, 0, WSTOPPED) < 0) {
+      perror("waitpid");
       code++;
       goto done;
     }
 
-    printf("  %p: call=%p,callflag=%d,nextcontext=%p\n", (void *) addr,
-           (void *) cptr->call, cptr->callflag, (void *) cptr->nextcontext);
-
-    /* We're at the top level. */
-    if (cptr->callflag == CTXT_TOPLEVEL) {
-      strcat(stackbuff, " 1");
-      break; // Probably unnecessary.
-    } else if (depth > 0) {
-      strcat(stackbuff, ";");
-    }
-
-    copy_sexp(pid, (void *) cptr->call, &call);
-    if (!call) {
-      fprintf(stderr, "could not read call\n");
+    long context_ptr = ptrace(PTRACE_PEEKTEXT, pid, context_addr, NULL);
+    if (context_ptr < 0) {
+      perror("Error in ptrace PEEKTEXT");
       code++;
       goto done;
     }
+    /* printf("R_GlobalContext contains %p in pid %d.\n", (void *) context_ptr, pid); */
 
-    if (cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN) &&
-        TYPEOF(call) == LANGSXP) {
-      copy_sexp(pid, (void *) CAR(call), &fun);
-      if (!fun) {
-        fprintf(stderr, "lang item has no CAR\n");
+    RCNTXT *cptr = NULL;
+    SEXP call = NULL, fun = NULL, name = NULL;
+    int depth = 0;
+    addr = (uintptr_t) context_ptr;
+    char stackbuff[1024];
+    stackbuff[0] = '\0';
+
+    printf("Format: bt\n\n");
+
+    for (copy_context(pid, (void *) context_ptr, &cptr); cptr;
+         copy_context(pid, (void *) cptr->nextcontext, &cptr)) {
+
+      if (depth > MAX_STACK_DEPTH) {
+        fprintf(stderr, "exceeded max stack depth (%d)\n", MAX_STACK_DEPTH);
         code++;
         goto done;
       }
-      if (TYPEOF(fun) == SYMSXP) {
-        copy_sexp(pid, (void *) PRINTNAME(fun), &name);
-        printf("#%d %15p in %s ()\n", depth, (void *) addr, CHAR(name));
-        strcat(stackbuff, CHAR(name));
-      } else {
-        printf("    TYPEOF(CAR(call)): %d\n", TYPEOF(fun));
+
+      /* printf("  %p: call=%p,callflag=%d,nextcontext=%p\n", (void *) addr, */
+      /*        (void *) cptr->call, cptr->callflag, (void *) cptr->nextcontext); */
+
+      /* We're at the top level. */
+      if (cptr->callflag == CTXT_TOPLEVEL) {
+        strcat(stackbuff, " 1");
+        break; // Probably unnecessary.
+      } else if (depth > 0) {
+        strcat(stackbuff, ";");
       }
-    } else {
-      printf("    TYPEOF(call)=%d\n", TYPEOF(call));
+
+      copy_sexp(pid, (void *) cptr->call, &call);
+      if (!call) {
+        fprintf(stderr, "could not read call\n");
+        code++;
+        goto done;
+      }
+
+      if (cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN) &&
+          TYPEOF(call) == LANGSXP) {
+        copy_sexp(pid, (void *) CAR(call), &fun);
+        if (!fun) {
+          fprintf(stderr, "lang item has no CAR\n");
+          code++;
+          goto done;
+        }
+        if (TYPEOF(fun) == SYMSXP) {
+          copy_sexp(pid, (void *) PRINTNAME(fun), &name);
+          printf("#%d %15p in %s ()\n", depth, (void *) addr, CHAR(name));
+          strcat(stackbuff, CHAR(name));
+        } else {
+          /* printf("    TYPEOF(CAR(call)): %d\n", TYPEOF(fun)); */
+        }
+      } else {
+        /* printf("    TYPEOF(call)=%d\n", TYPEOF(call)); */
+      }
+
+      addr = (uintptr_t) cptr->nextcontext;
+      depth++;
     }
 
-    addr = (uintptr_t) cptr->nextcontext;
-    depth++;
-  }
+    printf("\nFormat: Flamegraph.pl\n\n%s\n", stackbuff);
+    free(cptr);
+    free(call);
+    free(fun);
+    free(name);
 
-  printf("\nFormat: Flamegraph.pl\n\n%s\n", stackbuff);
-  free(cptr);
-  free(call);
-  free(fun);
-  free(name);
+
+    if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
+      perror("ptrace CONT");
+      code++;
+      goto done;
+    }
+    if (nanosleep(&sleep_spec, NULL) < 0) {
+      perror("nanosleep");
+      break;
+    }
+  }
 
  done:
   if (ptrace(PTRACE_DETACH, pid, NULL, NULL)) {
