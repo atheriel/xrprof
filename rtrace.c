@@ -174,7 +174,9 @@ int main(int argc, char **argv) {
     goto done;
   }
 
-  printf("Found %s at %p in pid %d.\n", path, (void *) addr, pid);
+  if (verbose) fprintf(stderr, "Found %s at %p in pid %d.\n", path,
+                       (void *) addr, pid);
+
   void *handle = dlopen(path, RTLD_LAZY);
   if (!handle) {
     fprintf(stderr, "%s\n", dlerror());
@@ -189,7 +191,9 @@ int main(int argc, char **argv) {
     code++;
     goto done;
   }
-  printf("Found %s at %p in pid %d.\n", path, (void *) local_addr, getpid());
+
+  if (verbose) fprintf(stderr, "Found %s at %p locally.\n", path,
+                       (void *) local_addr);
   free(path);
 
   void* context_addr = dlsym(handle, "R_GlobalContext");
@@ -198,8 +202,6 @@ int main(int argc, char **argv) {
     code++;
     goto done;
   }
-  printf("Found R_GlobalContext at %p in pid %d.\n", context_addr, getpid());
-  
   ptrdiff_t context_offset = (uintptr_t) context_addr - local_addr;
 
   dlclose(handle);
@@ -210,7 +212,7 @@ int main(int argc, char **argv) {
     code++;
     goto done;
   }
-  printf("R_GlobalContext contains %p in pid %d.\n", (void *) context_ptr, pid);
+  /* printf("R_GlobalContext contains %p in pid %d.\n", (void *) context_ptr, pid); */
 
   RCNTXT *cptr = NULL;
   SEXP call = NULL, fun = NULL, name = NULL;
