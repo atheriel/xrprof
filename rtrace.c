@@ -112,6 +112,12 @@ void copy_sexp(pid_t pid, void *addr, SEXP *data) {
   return;
 }
 
+void usage(const char *name) {
+  // TODO: Add a long help message.
+  printf("Usage: %s [-v] -p <pid>\n", name);
+  return;
+}
+
 int main(int argc, char **argv) {
   pid_t pid = -1;
   int verbose = 0;
@@ -120,8 +126,7 @@ int main(int argc, char **argv) {
   while ((opt = getopt(argc, argv, "hvp:")) != -1) {
     switch (opt) {
     case 'h':
-      // TODO: Add a long help message.
-      printf("Usage: %s [-v] -p <pid>\n", argv[0]);
+      usage(argv[0]);
       return 0;
       break;
     case 'v':
@@ -140,7 +145,7 @@ int main(int argc, char **argv) {
       }
       break;
     default: /* '?' */
-      printf("Usage: %s [-v] -p <pid>\n", argv[0]);
+      usage(argv[0]);
       return 1;
       break;
     }
@@ -148,7 +153,7 @@ int main(int argc, char **argv) {
 
   // A PID is required.
   if (pid == -1) {
-    printf("Usage: %s [-v] -p <pid>\n", argv[0]);
+    usage(argv[0]);
     return 1;
   }
 
