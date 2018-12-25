@@ -20,6 +20,7 @@
 #define MAX_LIBR_PATH_LEN 128
 #define DEFAULT_FREQ 100
 #define MAX_FREQ 1000
+#define DEFAULT_DURATION 3600 // One hour.
 
 static volatile int should_trace = 1;
 
@@ -123,17 +124,18 @@ void copy_sexp(pid_t pid, void *addr, SEXP *data) {
 
 void usage(const char *name) {
   // TODO: Add a long help message.
-  printf("Usage: %s [-v] [-F <freq>] -p <pid>\n", name);
+  printf("Usage: %s [-v] [-F <freq>] [-d <duration>] -p <pid>\n", name);
   return;
 }
 
 int main(int argc, char **argv) {
   pid_t pid = -1;
   int freq = DEFAULT_FREQ;
+  float duration = DEFAULT_DURATION;
   int verbose = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "hvF:p:")) != -1) {
+  while ((opt = getopt(argc, argv, "hvF:d:p:")) != -1) {
     switch (opt) {
     case 'h':
       usage(argv[0]);
@@ -169,6 +171,17 @@ int main(int argc, char **argv) {
         freq = MAX_FREQ;
         fprintf(stderr, "Frequency cannot exceed %d, using that instead.\n",
                 freq);
+      }
+      break;
+    case 'd':
+      duration = strtof(optarg, NULL);
+      if (errno != 0 && duration == 0) {
+        perror("strtof");
+        return 1;
+      }
+      if (duration < 0) {
+        duration = DEFAULT_DURATION;
+        fprintf(stderr, "Invalid duration, ignoring.\n");
       }
       break;
     default: /* '?' */
@@ -255,8 +268,9 @@ int main(int argc, char **argv) {
 
   // Allow the user to stop the tracing with Ctrl-C.
   signal(SIGINT, handle_sigint);
+  float elapsed = 0;
 
-  while (should_trace) {
+  while (should_trace && elapsed <= duration) {
     if (kill(pid, SIGSTOP) < 0) {
       perror("kill SIGSTOP");
       code++;
@@ -350,6 +364,7 @@ int main(int argc, char **argv) {
     if (nanosleep(&sleep_spec, NULL) < 0) {
       break; // Interupted.
     }
+    elapsed = elapsed + 1.0 / freq;
   }
 
  done:
