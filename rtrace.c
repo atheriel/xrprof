@@ -353,10 +353,7 @@ int main(int argc, char **argv) {
   }
 
  done:
-  if (ptrace(PTRACE_DETACH, pid, NULL, NULL)) {
-    perror("ptrace DETACH");
-    code++;
-  }
+  ptrace(PTRACE_DETACH, pid, NULL, NULL);
 
   return code;
 }
