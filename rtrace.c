@@ -113,17 +113,42 @@ void copy_sexp(pid_t pid, void *addr, SEXP *data) {
 }
 
 int main(int argc, char **argv) {
-  pid_t pid;
-  if (argc != 2) {
-    printf("Usage: %s PID\n", argv[0]);
-    return 0;
+  pid_t pid = -1;
+  int verbose = 0;
+
+  int opt;
+  while ((opt = getopt(argc, argv, "hvp:")) != -1) {
+    switch (opt) {
+    case 'h':
+      // TODO: Add a long help message.
+      printf("Usage: %s [-v] -p <pid>\n", argv[0]);
+      return 0;
+      break;
+    case 'v':
+      verbose++;
+      break;
+    case 'p':
+      pid = strtol(optarg, NULL, 10);
+      if ((errno == ERANGE && (pid == LONG_MAX || pid == LONG_MIN)) ||
+          (errno != 0 && pid == 0)) {
+        perror("strtol");
+        return 1;
+      }
+      if (pid < 0) {
+        fprintf(stderr, "cannot accept negative pids\n");
+        return 1;
+      }
+      break;
+    default: /* '?' */
+      printf("Usage: %s [-v] -p <pid>\n", argv[0]);
+      return 1;
+      break;
+    }
   }
-  pid = strtol(argv[1], NULL, 10);
-  if (errno != 0) {
-    perror("strtoul");
-    return 1;
-  } else if (pid < 0) {
-    fprintf(stderr, "cannot accept negative pids\n");
+
+  // A PID is required.
+  if (pid == -1) {
+    printf("Usage: %s [-v] -p <pid>\n", argv[0]);
     return 1;
   }
 
