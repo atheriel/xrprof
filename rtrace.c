@@ -185,7 +185,8 @@ int main(int argc, char **argv) {
   }
 
   struct timespec sleep_spec;
-  sleep_spec.tv_nsec = 1000000 / freq;
+  sleep_spec.tv_sec = freq == 1 ? 1 : 0;
+  sleep_spec.tv_nsec = freq == 1 ? 0 : 1000000000 / freq;
 
   int code = 0;
 
@@ -347,8 +348,7 @@ int main(int argc, char **argv) {
       goto done;
     }
     if (nanosleep(&sleep_spec, NULL) < 0) {
-      perror("nanosleep");
-      break;
+      break; // Interupted.
     }
   }
 
