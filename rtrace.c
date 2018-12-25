@@ -154,6 +154,8 @@ int main(int argc, char **argv) {
 
   int code = 0;
 
+  /* First, check that we can attach to the process. */
+
   if (ptrace(PTRACE_ATTACH, pid, NULL, NULL)) {
     perror("ptrace ATTACH");
     return 1;
@@ -163,8 +165,14 @@ int main(int argc, char **argv) {
     code++;
     goto done;
   }
+  if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
+    perror("ptrace CONT");
+    code++;
+    goto done;
+  }
 
-  /* Do something. */
+  /* Open the same libR.so in the tracer so we can determine the symbol offsets
+     to read memory at in the tracee. */
 
   char *path = NULL;
   uintptr_t addr;
@@ -205,6 +213,19 @@ int main(int argc, char **argv) {
   ptrdiff_t context_offset = (uintptr_t) context_addr - local_addr;
 
   dlclose(handle);
+
+  /* Stop the tracee and read the R stack information. */
+
+  if (kill(pid, SIGSTOP) < 0) {
+    perror("kill SIGSTOP");
+    code++;
+    goto done;
+  }
+  if (waitpid(pid, 0, WSTOPPED) < 0) {
+    perror("waitpid");
+    code++;
+    goto done;
+  }
 
   long context_ptr = ptrace(PTRACE_PEEKTEXT, pid, addr + context_offset, NULL);
   if (context_ptr < 0) {
