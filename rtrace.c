@@ -205,19 +205,9 @@ int main(int argc, char **argv) {
 
   /* First, check that we can attach to the process. */
 
-  if (ptrace(PTRACE_ATTACH, pid, NULL, NULL)) {
-    perror("ptrace ATTACH");
+  if (ptrace(PTRACE_SEIZE, pid, NULL, NULL)) {
+    perror("Error in ptrace SEIZE");
     return 1;
-  }
-  if (waitpid(pid, 0, WSTOPPED) < 0) {
-    perror("waitpid");
-    code++;
-    goto done;
-  }
-  if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
-    perror("ptrace CONT");
-    code++;
-    goto done;
   }
 
   /* Open the same libR.so in the tracer so we can determine the symbol offsets
@@ -271,13 +261,29 @@ int main(int argc, char **argv) {
   float elapsed = 0;
 
   while (should_trace && elapsed <= duration) {
-    if (kill(pid, SIGSTOP) < 0) {
-      perror("kill SIGSTOP");
+    if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
+      perror("ptrace INTERRUPT");
       code++;
       goto done;
     }
-    if (waitpid(pid, 0, WSTOPPED) < 0) {
+    int wstatus;
+    if (waitpid(pid, &wstatus, 0) < 0) {
       perror("waitpid");
+      code++;
+      goto done;
+    }
+    if (WIFEXITED(wstatus)) {
+      fprintf(stderr, "Process %d finished\n.", pid);
+      break;
+    } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGCHLD) {
+      ptrace(PTRACE_CONT, pid, NULL, NULL);
+      continue;
+    } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) != SIGTRAP) {
+      fprintf(stderr, "Unexpected stop signal: %d\n", WSTOPSIG(wstatus));
+      code++;
+      goto done;
+    } else if (!WIFSTOPPED(wstatus)) {
+      fprintf(stderr, "Unexpected waitpid status: %d\n", WSTOPSIG(wstatus));
       code++;
       goto done;
     }
