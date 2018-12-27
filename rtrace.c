@@ -260,6 +260,9 @@ int main(int argc, char **argv) {
   signal(SIGINT, handle_sigint);
   float elapsed = 0;
 
+  // Write the Rprof.out header.
+  printf("sample.interval=%d\n", 1000000 / freq);
+
   while (should_trace && elapsed <= duration) {
     if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
       perror("ptrace INTERRUPT");
@@ -299,11 +302,6 @@ int main(int argc, char **argv) {
     RCNTXT *cptr = NULL;
     SEXP call = NULL, fun = NULL, name = NULL;
     int depth = 0;
-    addr = (uintptr_t) context_ptr;
-    char stackbuff[1024];
-    stackbuff[0] = '\0';
-
-    printf("Format: bt\n\n");
 
     for (copy_context(pid, (void *) context_ptr, &cptr); cptr;
          copy_context(pid, (void *) cptr->nextcontext, &cptr)) {
@@ -319,11 +317,10 @@ int main(int argc, char **argv) {
 
       /* We're at the top level. */
       if (cptr->callflag == CTXT_TOPLEVEL) {
-        strcat(stackbuff, " 1");
-        break; // Probably unnecessary.
-      } else if (depth > 0) {
-        strcat(stackbuff, ";");
+        printf("\n");
+        break;
       }
+      printf("\"");
 
       copy_sexp(pid, (void *) cptr->call, &call);
       if (!call) {
@@ -342,8 +339,7 @@ int main(int argc, char **argv) {
         }
         if (TYPEOF(fun) == SYMSXP) {
           copy_sexp(pid, (void *) PRINTNAME(fun), &name);
-          printf("#%d %15p in %s ()\n", depth, (void *) addr, CHAR(name));
-          strcat(stackbuff, CHAR(name));
+          printf("%s", CHAR(name));
         } else {
           /* printf("    TYPEOF(CAR(call)): %d\n", TYPEOF(fun)); */
         }
@@ -351,16 +347,14 @@ int main(int argc, char **argv) {
         /* printf("    TYPEOF(call)=%d\n", TYPEOF(call)); */
       }
 
-      addr = (uintptr_t) cptr->nextcontext;
+      printf("\" ");
       depth++;
     }
 
-    printf("\nFormat: Flamegraph.pl\n\n%s\n", stackbuff);
     free(cptr);
     free(call);
     free(fun);
     free(name);
-
 
     if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
       perror("ptrace CONT");
