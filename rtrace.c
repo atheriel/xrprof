@@ -122,6 +122,63 @@ void copy_sexp(pid_t pid, void *addr, SEXP *data) {
   return;
 }
 
+void copy_char(pid_t pid, void *addr, char **data) {
+  if (!addr) { /* Makes loops easier. */
+    goto fail;
+  }
+  size_t len, bytes;
+  struct iovec local[1], remote[1];
+  void *str_addr = STDVEC_DATAPTR(addr);
+
+  /* We need to do this is two passes. First, we read the VECSEXP data to get
+     the length of the data, and then we use that length and the data pointer
+     address to read the actual character array. */
+
+  len = sizeof(SEXPREC_ALIGN);
+  SEXPREC_ALIGN *vec = (SEXPREC_ALIGN *) malloc(len);
+
+  local[0].iov_base = vec;
+  local[0].iov_len = len;
+  remote[0].iov_base = addr;
+  remote[0].iov_len = len;
+
+  bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
+  if (bytes < 0) {
+    perror("process_vm_readv");
+    goto fail;
+  } else if (bytes < len) {
+    fprintf(stderr, "partial read of VECSEXP data\n");
+    goto fail;
+  }
+
+  len = vec->s.vecsxp.length;
+  free(vec);
+
+  *data = realloc(*data, len + 1);
+  (*data)[len] = '\0';
+
+  local[0].iov_base = *data;
+  local[0].iov_len = len;
+  remote[0].iov_base = str_addr;
+  remote[0].iov_len = len;
+
+  bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
+  if (bytes < 0) {
+    perror("process_vm_readv");
+    goto fail;
+  } else if (bytes < len) {
+    fprintf(stderr, "partial read of CHAR data\n");
+    goto fail;
+  }
+
+  return;
+
+ fail:
+  free(*data);
+  data = NULL;
+  return;
+}
+
 void usage(const char *name) {
   // TODO: Add a long help message.
   printf("Usage: %s [-v] [-F <freq>] [-d <duration>] -p <pid>\n", name);
@@ -300,7 +357,8 @@ int main(int argc, char **argv) {
     /* printf("R_GlobalContext contains %p in pid %d.\n", (void *) context_ptr, pid); */
 
     RCNTXT *cptr = NULL;
-    SEXP call = NULL, fun = NULL, name = NULL;
+    SEXP call = NULL, fun = NULL;
+    char *name = NULL;
     int depth = 0;
 
     for (copy_context(pid, (void *) context_ptr, &cptr); cptr;
@@ -338,8 +396,8 @@ int main(int argc, char **argv) {
           goto done;
         }
         if (TYPEOF(fun) == SYMSXP) {
-          copy_sexp(pid, (void *) PRINTNAME(fun), &name);
-          printf("%s", CHAR(name));
+          copy_char(pid, (void *) PRINTNAME(fun), &name);
+          printf("%s", name);
         } else {
           /* printf("    TYPEOF(CAR(call)): %d\n", TYPEOF(fun)); */
         }
