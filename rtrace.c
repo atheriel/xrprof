@@ -16,7 +16,7 @@
 
 #include "rtrace.h"
 
-#define MAX_STACK_DEPTH 5
+#define MAX_STACK_DEPTH 100
 #define MAX_LIBR_PATH_LEN 128
 #define DEFAULT_FREQ 100
 #define MAX_FREQ 1000
@@ -365,9 +365,9 @@ int main(int argc, char **argv) {
          copy_context(pid, (void *) cptr->nextcontext, &cptr)) {
 
       if (depth > MAX_STACK_DEPTH) {
-        fprintf(stderr, "exceeded max stack depth (%d)\n", MAX_STACK_DEPTH);
-        code++;
-        goto done;
+        fprintf(stderr, "Warning: Exceeded max stack depth (%d)\n",
+                MAX_STACK_DEPTH);
+        break;
       }
 
       /* printf("  %p: call=%p,callflag=%d,nextcontext=%p\n", (void *) addr, */
