@@ -28,36 +28,6 @@ void handle_sigint(int _sig) {
   should_trace = 0;
 }
 
-int find_libR(pid_t pid, char **path, uintptr_t *addr) {
-  char maps_file[32];
-  snprintf(maps_file, sizeof(maps_file), "/proc/%d/maps", pid);
-  FILE *file = fopen(maps_file, "r");
-  if (!file) {
-    perror("fopen");
-    return -1;
-  }
-
-  char buffer[1024];
-  while (fgets(buffer, sizeof(buffer), file)) {
-    if (strstr(buffer, "libR.so")) {
-      /* Extract the address. */
-      *addr = (uintptr_t) strtoul(buffer, NULL, 16);
-
-      /* Extract the path, minus the trailing '\n'. */
-      *path = strndup(strstr(buffer, "/"), MAX_LIBR_PATH_LEN);
-      char *linebreak = strstr(*path, "\n");
-      if (linebreak) {
-        *linebreak = '\0';
-      }
-
-      break;
-    }
-  }
-
-  fclose(file);
-  return 0;
-}
-
 void copy_context(pid_t pid, void *addr, RCNTXT **data) {
   if (!addr) { /* Makes loops easier. */
     goto fail;
@@ -267,49 +237,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* Open the same libR.so in the tracer so we can determine the symbol offsets
-     to read memory at in the tracee. */
+  /* Find the symbols and addresses we need. */
 
-  char *path = NULL;
-  uintptr_t addr;
-  if (find_libR(pid, &path, &addr) < 0) {
-    fprintf(stderr, "could not locate libR.so in process memory");
-    code++;
-    goto done;
-  }
-
-  if (verbose) fprintf(stderr, "Found %s at %p in pid %d.\n", path,
-                       (void *) addr, pid);
-
-  void *handle = dlopen(path, RTLD_LAZY);
-  if (!handle) {
-    fprintf(stderr, "%s\n", dlerror());
-    code++;
-    goto done;
-  }
-  free(path);
-
-  uintptr_t local_addr;
-  if (find_libR(getpid(), &path, &local_addr) < 0) {
-    fprintf(stderr, "could not locate libR.so in process memory");
-    code++;
-    goto done;
-  }
-
-  if (verbose) fprintf(stderr, "Found %s at %p locally.\n", path,
-                       (void *) local_addr);
-  free(path);
-
-  void* context_addr = dlsym(handle, "R_GlobalContext");
-  if (!context_addr) {
-    fprintf(stderr, "%s\n", dlerror());
-    code++;
-    goto done;
-  }
-  ptrdiff_t context_offset = (uintptr_t) context_addr - local_addr;
-  uintptr_t context_addr = addr + context_offset;
-
-  dlclose(handle);
+  libR_globals globals = locate_libR_globals(pid);
 
   /* Stop the tracee and read the R stack information. */
 
@@ -348,13 +278,12 @@ int main(int argc, char **argv) {
       goto done;
     }
 
-    long context_ptr = ptrace(PTRACE_PEEKTEXT, pid, context_addr, NULL);
+    long context_ptr = ptrace(PTRACE_PEEKTEXT, pid, globals->context_addr, NULL);
     if (context_ptr < 0) {
       perror("Error in ptrace PEEKTEXT");
       code++;
       goto done;
     }
-    /* printf("R_GlobalContext contains %p in pid %d.\n", (void *) context_ptr, pid); */
 
     RCNTXT *cptr = NULL;
     SEXP call = NULL, fun = NULL;

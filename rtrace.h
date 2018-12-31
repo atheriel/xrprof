@@ -1,3 +1,5 @@
+#include "locate.h"
+
 #define USE_RINTERNALS
 #include <R/Rinternals.h>
 

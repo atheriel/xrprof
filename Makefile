@@ -7,8 +7,14 @@ INCLUDES = -I$(R_HEADERS)
 
 all: rtrace
 
-rtrace: rtrace.c rtrace.h
-	$(CC) $(CFLAGS) $(LIBS) $(INCLUDES) $< -o $@
+rtrace.o: rtrace.c rtrace.h
+	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
+
+locate.o: locate.c locate.h
+	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
+
+rtrace: rtrace.o locate.o
+	$(CC) $(CFLAGS) $(LIBS) $(INCLUDES) $^ -o $@
 
 clean:
 	rm -f rtrace
