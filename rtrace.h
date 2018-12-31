@@ -70,3 +70,8 @@ enum {
       CTXT_BUILTIN  = 64,
       CTXT_UNWIND   = 128
 };
+
+/* Defined in memory.c. */
+void copy_context(pid_t pid, void *addr, RCNTXT **data);
+void copy_sexp(pid_t pid, void *addr, SEXP *data);
+void copy_char(pid_t pid, void *addr, char **data);

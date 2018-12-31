@@ -13,7 +13,10 @@ rtrace.o: rtrace.c rtrace.h
 locate.o: locate.c locate.h
 	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
 
-rtrace: rtrace.o locate.o
+memory.o: memory.c rtrace.h
+	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
+
+rtrace: rtrace.o locate.o memory.o
 	$(CC) $(CFLAGS) $(LIBS) $(INCLUDES) $^ -o $@
 
 clean:
