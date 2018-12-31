@@ -316,6 +316,8 @@ int main(int argc, char **argv) {
         goto done;
       }
 
+      /* Adapted from R's eval.c code for Rprof. */
+
       if (cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN) &&
           TYPEOF(call) == LANGSXP) {
         copy_sexp(pid, (void *) CAR(call), &fun);
@@ -327,11 +329,41 @@ int main(int argc, char **argv) {
         if (TYPEOF(fun) == SYMSXP) {
           copy_char(pid, (void *) PRINTNAME(fun), &name);
           printf("%s", name);
+        } else if (TYPEOF(fun) == LANGSXP) {
+          SEXP cdr = NULL, lhs = NULL, rhs = NULL;
+          char *lname = NULL, *rname = NULL;
+          copy_sexp(pid, (void *) CDR(fun), &cdr);
+          copy_sexp(pid, (void *) CAR(cdr), &lhs);
+          copy_sexp(pid, (void *) CDR(cdr), &cdr);
+          copy_sexp(pid, (void *) CAR(cdr), &rhs);
+          if ((uintptr_t) CAR(fun) == globals->doublecolon &&
+              TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
+            copy_char(pid, (void *) PRINTNAME(lhs), &lname);
+            copy_char(pid, (void *) PRINTNAME(rhs), &rname);
+            printf("%s::%s", lname, rname);
+          } else if ((uintptr_t) CAR(fun) == globals->triplecolon &&
+              TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
+            copy_char(pid, (void *) PRINTNAME(lhs), &lname);
+            copy_char(pid, (void *) PRINTNAME(rhs), &rname);
+            printf("%s:::%s", lname, rname);
+          } else if ((uintptr_t) CAR(fun) == globals->dollar &&
+              TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
+            copy_char(pid, (void *) PRINTNAME(lhs), &lname);
+            copy_char(pid, (void *) PRINTNAME(rhs), &rname);
+            printf("%s$%s", lname, rname);
+          } else {
+            fprintf(stderr, "CAR(fun)=%p; lhs=%p; rhs=%p\n",
+                    (void *) CAR(fun), (void *) lhs, (void *) rhs);
+            printf("<Unimplemented>");
+          }
         } else {
-          /* printf("    TYPEOF(CAR(call)): %d\n", TYPEOF(fun)); */
+          printf("<Anonymous>");
+          fprintf(stderr, "TYPEOF(fun): %d\n", TYPEOF(fun));
         }
       } else {
-        /* printf("    TYPEOF(call)=%d\n", TYPEOF(call)); */
+        printf("<Unknown>");
+        fprintf(stderr, "TYPEOF(call)=%d; callflag=%d\n", TYPEOF(call),
+                cptr->callflag);
       }
 
       printf("\" ");
