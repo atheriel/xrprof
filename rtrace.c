@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
       goto done;
     }
     if (WIFEXITED(wstatus)) {
-      fprintf(stderr, "Process %d finished\n.", pid);
+      fprintf(stderr, "Process %d finished.\n", pid);
       break;
     } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGCHLD) {
       ptrace(PTRACE_CONT, pid, NULL, NULL);
