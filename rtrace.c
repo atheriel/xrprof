@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
 
       /* We're at the top level. */
       if (cptr->callflag == CTXT_TOPLEVEL) {
-        printf("\n");
+        if (depth > 0) printf("\n");
         break;
       }
       printf("\"");
