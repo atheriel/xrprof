@@ -28,7 +28,7 @@ You can use this to produce graphs like the one below:
 $ stackcollapse-Rprof.R Rprof.out | flamegraph.pl > Rprof.svg
 ```
 
-![example-flamegraph.svg](Example flamegraph.)
+![Example FlameGraph](example-flamegraph.svg)
 
 The project was inspired by Julia Evan's blog posts on writing
 [`rbspy`](https://rbspy.github.io/) and later by my discovery of Evan Klitzke's
