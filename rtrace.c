@@ -28,6 +28,97 @@ void handle_sigint(int _sig) {
   should_trace = 0;
 }
 
+struct rstack_cursor {
+  void *rcxt_ptr;
+  libR_globals globals;
+  pid_t pid;
+  int depth;
+};
+
+int rstack_step(struct rstack_cursor *cursor) {
+  RCNTXT *cptr = NULL;
+  SEXP call = NULL, fun = NULL;
+  char *name = NULL;
+
+  copy_context(cursor->pid, cursor->rcxt_ptr, &cptr);
+
+  if (!cptr) {
+    return 0;
+  }
+
+  /* We're at the top level. */
+  if (cptr->callflag == CTXT_TOPLEVEL) {
+    return 0;
+  }
+  printf("\"");
+
+  copy_sexp(cursor->pid, (void *) cptr->call, &call);
+  if (!call) {
+    fprintf(stderr, "could not read call\n");
+    return -1;
+  }
+
+  /* Adapted from R's eval.c code for Rprof. */
+
+  if (cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN) &&
+      TYPEOF(call) == LANGSXP) {
+    copy_sexp(cursor->pid, (void *) CAR(call), &fun);
+    if (!fun) {
+      fprintf(stderr, "lang item has no CAR\n");
+      return -1;
+    }
+    if (TYPEOF(fun) == SYMSXP) {
+      copy_char(cursor->pid, (void *) PRINTNAME(fun), &name);
+      printf("%s", name);
+    } else if (TYPEOF(fun) == LANGSXP) {
+      SEXP cdr = NULL, lhs = NULL, rhs = NULL;
+      char *lname = NULL, *rname = NULL;
+      copy_sexp(cursor->pid, (void *) CDR(fun), &cdr);
+      copy_sexp(cursor->pid, (void *) CAR(cdr), &lhs);
+      copy_sexp(cursor->pid, (void *) CDR(cdr), &cdr);
+      copy_sexp(cursor->pid, (void *) CAR(cdr), &rhs);
+      if ((uintptr_t) CAR(fun) == cursor->globals->doublecolon &&
+          TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
+        copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
+        copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
+        printf("%s::%s", lname, rname);
+      } else if ((uintptr_t) CAR(fun) == cursor->globals->triplecolon &&
+                 TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
+        copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
+        copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
+        printf("%s:::%s", lname, rname);
+      } else if ((uintptr_t) CAR(fun) == cursor->globals->dollar &&
+                 TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
+        copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
+        copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
+        printf("%s$%s", lname, rname);
+      } else {
+        /* fprintf(stderr, "CAR(fun)=%p; lhs=%p; rhs=%p\n", */
+        /*         (void *) CAR(fun), (void *) lhs, (void *) rhs); */
+        printf("<Unimplemented>");
+      }
+    } else {
+      printf("<Anonymous>");
+      fprintf(stderr, "TYPEOF(fun): %d\n", TYPEOF(fun));
+    }
+  } else {
+    printf("<Unknown>");
+    /* fprintf(stderr, "TYPEOF(call)=%d; callflag=%d\n", TYPEOF(call), */
+    /*         cptr->callflag); */
+  }
+  printf("\" ");
+
+  cursor->depth++;
+  cursor->rcxt_ptr = cptr->nextcontext;
+
+  free(cptr);
+  free(call);
+  free(fun);
+  free(name);
+
+  return cursor->depth;
+}
+
 void usage(const char *name) {
   // TODO: Add a long help message.
   printf("Usage: %s [-v] [-F <freq>] [-d <duration>] -p <pid>\n", name);
@@ -164,95 +255,25 @@ int main(int argc, char **argv) {
       goto done;
     }
 
-    RCNTXT *cptr = NULL;
-    SEXP call = NULL, fun = NULL;
-    char *name = NULL;
-    int depth = 0;
+    struct rstack_cursor cursor;
+    cursor.pid = pid;
+    cursor.globals = globals;
+    cursor.depth = 0;
+    cursor.rcxt_ptr = (void *) context_ptr;
 
-    for (copy_context(pid, (void *) context_ptr, &cptr); cptr;
-         copy_context(pid, (void *) cptr->nextcontext, &cptr)) {
-
-      if (depth > MAX_STACK_DEPTH) {
+    int reached;
+    while ((reached = rstack_step(&cursor)) > 0) {
+      if (cursor.depth > MAX_STACK_DEPTH) {
         fprintf(stderr, "Warning: Exceeded max stack depth (%d)\n",
                 MAX_STACK_DEPTH);
         break;
       }
-
-      /* printf("  %p: call=%p,callflag=%d,nextcontext=%p\n", (void *) addr, */
-      /*        (void *) cptr->call, cptr->callflag, (void *) cptr->nextcontext); */
-
-      /* We're at the top level. */
-      if (cptr->callflag == CTXT_TOPLEVEL) {
-        if (depth > 0) printf("\n");
-        break;
-      }
-      printf("\"");
-
-      copy_sexp(pid, (void *) cptr->call, &call);
-      if (!call) {
-        fprintf(stderr, "could not read call\n");
-        code++;
-        goto done;
-      }
-
-      /* Adapted from R's eval.c code for Rprof. */
-
-      if (cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN) &&
-          TYPEOF(call) == LANGSXP) {
-        copy_sexp(pid, (void *) CAR(call), &fun);
-        if (!fun) {
-          fprintf(stderr, "lang item has no CAR\n");
-          code++;
-          goto done;
-        }
-        if (TYPEOF(fun) == SYMSXP) {
-          copy_char(pid, (void *) PRINTNAME(fun), &name);
-          printf("%s", name);
-        } else if (TYPEOF(fun) == LANGSXP) {
-          SEXP cdr = NULL, lhs = NULL, rhs = NULL;
-          char *lname = NULL, *rname = NULL;
-          copy_sexp(pid, (void *) CDR(fun), &cdr);
-          copy_sexp(pid, (void *) CAR(cdr), &lhs);
-          copy_sexp(pid, (void *) CDR(cdr), &cdr);
-          copy_sexp(pid, (void *) CAR(cdr), &rhs);
-          if ((uintptr_t) CAR(fun) == globals->doublecolon &&
-              TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
-            copy_char(pid, (void *) PRINTNAME(lhs), &lname);
-            copy_char(pid, (void *) PRINTNAME(rhs), &rname);
-            printf("%s::%s", lname, rname);
-          } else if ((uintptr_t) CAR(fun) == globals->triplecolon &&
-              TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
-            copy_char(pid, (void *) PRINTNAME(lhs), &lname);
-            copy_char(pid, (void *) PRINTNAME(rhs), &rname);
-            printf("%s:::%s", lname, rname);
-          } else if ((uintptr_t) CAR(fun) == globals->dollar &&
-              TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
-            copy_char(pid, (void *) PRINTNAME(lhs), &lname);
-            copy_char(pid, (void *) PRINTNAME(rhs), &rname);
-            printf("%s$%s", lname, rname);
-          } else {
-            fprintf(stderr, "CAR(fun)=%p; lhs=%p; rhs=%p\n",
-                    (void *) CAR(fun), (void *) lhs, (void *) rhs);
-            printf("<Unimplemented>");
-          }
-        } else {
-          printf("<Anonymous>");
-          fprintf(stderr, "TYPEOF(fun): %d\n", TYPEOF(fun));
-        }
-      } else {
-        printf("<Unknown>");
-        fprintf(stderr, "TYPEOF(call)=%d; callflag=%d\n", TYPEOF(call),
-                cptr->callflag);
-      }
-
-      printf("\" ");
-      depth++;
     }
-
-    free(cptr);
-    free(call);
-    free(fun);
-    free(name);
+    if (reached < 0) {
+      code++;
+      goto done;
+    }
+    printf("\n");
 
     if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
       perror("ptrace CONT");
