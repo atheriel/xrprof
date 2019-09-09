@@ -17,7 +17,7 @@ memory.o: memory.c rtrace.h
 	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
 
 rtrace: rtrace.o locate.o memory.o
-	$(CC) $(CFLAGS) $(LIBS) $(INCLUDES) $^ -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LIBS)
 
 clean:
 	rm -f rtrace
