@@ -1,7 +1,7 @@
 #include "locate.h"
 
 #define USE_RINTERNALS
-#include <R/Rinternals.h>
+#include <Rinternals.h>
 
 /* The remainder is extracted from R/Defs.h */
 

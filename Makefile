@@ -1,5 +1,4 @@
-R_HEADERS = /usr/include/R/
-# R_HEADERS = ../R-3.5.2/src/include
+R_HEADERS := $(shell Rscript -e "cat(R.home('include'))")
 
 CFLAGS := -O2 -Wall -fPIC -g
 LIBS = -ldl

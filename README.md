@@ -57,7 +57,12 @@ now, the interface is as follows:
 
 ## Building
 
-The project contains a simple `Makefile`; just run `make`.
+The project contains a simple `Makefile`; just run `make`. This will attempt to
+find the R header files automatically. If this fails, you can override them:
+
+``` shell
+$ make R_HEADERS=~/src/R-3.5.2/include
+```
 
 ## Limitations
 
