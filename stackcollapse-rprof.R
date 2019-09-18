@@ -2,13 +2,19 @@
 
 argv <- commandArgs(TRUE)
 if (length(argv) != 1) {
+  # Attempt to read from stdin.
+  infile <- file("stdin", blocking = FALSE)
+} else {
+  infile <- file(argv[1])
+  open(infile, open = "rt")
+}
+
+chunk <- readLines(infile)
+if (length(chunk) == 0) {
   cat("Usage: stackcollapse-rout.R <Rprof.out>\n")
   quit(status = 1L)
 }
 
-infile <- file(argv[1], open = "rt")
-
-chunk <- readLines(infile)
 chunk <- chunk[-1] # For now, ignore the header.
 
 # Collapse stack listings.
