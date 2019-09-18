@@ -1,9 +1,19 @@
 #!/usr/bin/Rscript
 
+usage <- function() {
+  cat("Usage: stackcollapse-rout.R [-h|--help] <Rprof.out>\n")
+}
+
 argv <- commandArgs(TRUE)
-if (length(argv) != 1) {
+if (length(argv) == 0) {
   # Attempt to read from stdin.
   infile <- file("stdin", blocking = FALSE)
+} else if (length(argv) != 1) {
+  usage()
+  quit(status = 1L)
+} else if (argv[1] %in% c("-h", "--help")) {
+  usage()
+  quit(status = 0L)
 } else {
   infile <- file(argv[1])
   open(infile, open = "rt")
@@ -11,7 +21,7 @@ if (length(argv) != 1) {
 
 chunk <- readLines(infile)
 if (length(chunk) == 0) {
-  cat("Usage: stackcollapse-rout.R <Rprof.out>\n")
+  usage()
   quit(status = 1L)
 }
 
