@@ -30,29 +30,51 @@ void handle_sigint(int _sig) {
 
 struct rstack_cursor {
   void *rcxt_ptr;
+  RCNTXT *cptr;
   libR_globals globals;
   pid_t pid;
   int depth;
 };
 
-int rstack_step(struct rstack_cursor *cursor) {
-  RCNTXT *cptr = NULL;
+struct rstack_cursor *rstack_create(pid_t pid) {
+  /* Find the symbols and addresses we need. */
+  libR_globals globals = locate_libR_globals(pid);
+
+  struct rstack_cursor *out = malloc(sizeof(struct rstack_cursor));
+  out->rcxt_ptr = NULL;
+  out->cptr = NULL;
+  out->pid = pid;
+  out->globals = globals;
+  out->depth = 0;
+
+  return out;
+}
+
+void rstack_destroy(struct rstack_cursor *cursor) {
+  /* Clear any existing RCXT data. */
+  if (cursor->cptr) {
+    free(cursor->cptr);
+    cursor->cptr = NULL;
+  }
+  free(cursor);
+  return;
+}
+
+int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
   SEXP call = NULL, fun = NULL;
   char *name = NULL;
+  size_t written;
 
-  copy_context(cursor->pid, cursor->rcxt_ptr, &cptr);
-
-  if (!cptr) {
-    return 0;
+  if (!cursor || !cursor->cptr) {
+    return -1;
   }
 
   /* We're at the top level. */
-  if (cptr->callflag == CTXT_TOPLEVEL) {
+  if (cursor->cptr->callflag == CTXT_TOPLEVEL) {
     return 0;
   }
-  printf("\"");
 
-  copy_sexp(cursor->pid, (void *) cptr->call, &call);
+  copy_sexp(cursor->pid, (void *) cursor->cptr->call, &call);
   if (!call) {
     fprintf(stderr, "could not read call\n");
     return -1;
@@ -69,7 +91,7 @@ int rstack_step(struct rstack_cursor *cursor) {
     }
     if (TYPEOF(fun) == SYMSXP) {
       copy_char(cursor->pid, (void *) PRINTNAME(fun), &name);
-      printf("%s", name);
+      written = snprintf(buff, len, "%s", name);
     } else if (TYPEOF(fun) == LANGSXP) {
       SEXP cdr = NULL, lhs = NULL, rhs = NULL;
       char *lname = NULL, *rname = NULL;
@@ -81,40 +103,87 @@ int rstack_step(struct rstack_cursor *cursor) {
           TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
         copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
         copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
-        printf("%s::%s", lname, rname);
+        written = snprintf(buff, len, "%s::%s", lname, rname);
       } else if ((uintptr_t) CAR(fun) == cursor->globals->triplecolon &&
                  TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
         copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
         copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
-        printf("%s:::%s", lname, rname);
+        written = snprintf(buff, len, "%s:::%s", lname, rname);
       } else if ((uintptr_t) CAR(fun) == cursor->globals->dollar &&
                  TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
         copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
         copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
-        printf("%s$%s", lname, rname);
+        written = snprintf(buff, len, "%s$%s", lname, rname);
       } else {
         /* fprintf(stderr, "CAR(fun)=%p; lhs=%p; rhs=%p\n", */
         /*         (void *) CAR(fun), (void *) lhs, (void *) rhs); */
-        printf("<Unimplemented>");
+        written = snprintf(buff, len, "<Unimplemented>");
       }
     } else {
-      printf("<Anonymous>");
       fprintf(stderr, "TYPEOF(fun): %d\n", TYPEOF(fun));
+      written = snprintf(buff, len, "<Anonymous>");
     }
   } else {
-    printf("<Unknown>");
     /* fprintf(stderr, "TYPEOF(call)=%d; callflag=%d\n", TYPEOF(call), */
     /*         cptr->callflag); */
+    written = snprintf(buff, len, "<Unknown>");
   }
-  printf("\" ");
 
-  cursor->depth++;
-  cursor->rcxt_ptr = cptr->nextcontext;
-
-  free(cptr);
   free(call);
   free(fun);
   free(name);
+
+  /* Function name may be too long for the buffer. */
+  if (written >= len) {
+    return -2;
+  }
+
+  return 1;
+}
+
+int rstack_init(struct rstack_cursor *cursor) {
+  long context_ptr = ptrace(PTRACE_PEEKTEXT, cursor->pid, cursor->globals->context_addr, NULL);
+  if (context_ptr < 0) {
+    perror("Error in ptrace PEEKTEXT");
+    return -1;
+  }
+
+  cursor->rcxt_ptr = (void *) context_ptr;
+  cursor->depth = 0;
+
+  /* Clear any existing RCXT data. */
+  if (cursor->cptr) {
+    free(cursor->cptr);
+    cursor->cptr = NULL;
+  }
+
+  copy_context(cursor->pid, (void *) context_ptr, &cursor->cptr);
+  if (!cursor->cptr) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int rstack_step(struct rstack_cursor *cursor) {
+  if (!cursor || !cursor->cptr) {
+    return -1;
+  }
+
+  /* We're at the top level. */
+  if (cursor->cptr->callflag == CTXT_TOPLEVEL) {
+    return 0;
+  }
+
+  cursor->rcxt_ptr = cursor->cptr->nextcontext;
+  cursor->depth++;
+  free(cursor->cptr);
+  cursor->cptr = NULL;
+
+  copy_context(cursor->pid, cursor->rcxt_ptr, &cursor->cptr);
+  if (!cursor->cptr) {
+    return -2;
+  }
 
   return cursor->depth;
 }
@@ -207,9 +276,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* Find the symbols and addresses we need. */
+  struct rstack_cursor *cursor = rstack_create(pid);
 
-  libR_globals globals = locate_libR_globals(pid);
 
   /* Stop the tracee and read the R stack information. */
 
@@ -248,29 +316,29 @@ int main(int argc, char **argv) {
       goto done;
     }
 
-    long context_ptr = ptrace(PTRACE_PEEKTEXT, pid, globals->context_addr, NULL);
-    if (context_ptr < 0) {
-      perror("Error in ptrace PEEKTEXT");
+    int ret;
+    char rsym[256];
+    if ((ret = rstack_init(cursor)) < 0) {
       code++;
+      fprintf(stderr, "Failed to init R cursor: %d.\n", ret);
       goto done;
     }
 
-    struct rstack_cursor cursor;
-    cursor.pid = pid;
-    cursor.globals = globals;
-    cursor.depth = 0;
-    cursor.rcxt_ptr = (void *) context_ptr;
-
-    int reached;
-    while ((reached = rstack_step(&cursor)) > 0) {
-      if (cursor.depth > MAX_STACK_DEPTH) {
-        fprintf(stderr, "Warning: Exceeded max stack depth (%d)\n",
-                MAX_STACK_DEPTH);
-        break;
+    do {
+      rsym[0] = '\0';
+      if ((ret = rstack_get_fun_name(cursor, rsym, sizeof(rsym))) < 0) {
+        code++;
+        goto done;
+      } else if (ret == 0) {
+        printf("\"<TopLevel>\" ");
+      } else {
+        printf("\"%s\" ", rsym);
       }
-    }
-    if (reached < 0) {
+    } while ((ret = rstack_step(cursor)) > 0);
+
+    if (ret < 0) {
       code++;
+      fprintf(stderr, "Failed to step R cursor: %d.\n", ret);
       goto done;
     }
     printf("\n");
