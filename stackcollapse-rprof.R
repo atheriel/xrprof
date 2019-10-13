@@ -42,6 +42,7 @@ if (any(src_file_lines)) {
 
   chunk <- strsplit(chunk, "\\s\"")
 } else {
+  src_files <- NULL
   chunk <- strsplit(chunk, " ")
 }
 
@@ -50,15 +51,17 @@ process_line <- function(line) {
   line <- gsub("<Native:([^;]+)>", "\\1_[n]", line)
   line <- gsub("<Built-in:([^;]+)>", "\\1_[i]", line)
 
-  srcrefs <- grepl("[0-9]+#[0-9]+", line)
-  linenos <- gsub(".*\\s[0-9]+#([0-9]+)", "\\1", line[srcrefs])
-  filenos <- as.integer(gsub(".*\\s([0-9]+)#[0-9]+", "\\1", line[srcrefs]))
-  files <- src_files[filenos]
-  srcref_fmt <- paste(files, linenos, sep = ":")
+  if (!is.null(src_files)) {
+    srcrefs <- grepl("[0-9]+#[0-9]+", line)
+    linenos <- gsub(".*\\s[0-9]+#([0-9]+)", "\\1", line[srcrefs])
+    filenos <- as.integer(gsub(".*\\s([0-9]+)#[0-9]+", "\\1", line[srcrefs]))
+    files <- src_files[filenos]
+    srcref_fmt <- paste(files, linenos, sep = ":")
 
-  line <- gsub("\\s[0-9]+#[0-9]+", "", line)
-  line <- gsub("[\" ]", "", line)
-  line[srcrefs] <- paste(line[srcrefs], "at", srcref_fmt)
+    line <- gsub("\\s[0-9]+#[0-9]+", "", line)
+    line <- gsub("[\" ]", "", line)
+    line[srcrefs] <- paste(line[srcrefs], "at", srcref_fmt)
+  }
 
   line
 }
