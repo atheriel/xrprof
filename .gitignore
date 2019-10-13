@@ -1,3 +1,4 @@
 *.o
 rtrace
 .Rhistory
+.Rproj.user
