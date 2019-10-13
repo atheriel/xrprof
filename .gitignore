@@ -1,3 +1,5 @@
 *.o
 rtrace
 .Rhistory
+.Rproj.user
+Rprof.out
