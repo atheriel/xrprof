@@ -5,8 +5,9 @@ out the current stack in the standard `Rprof.out` format, which is widely used
 by existing R tools.
 
 ```shell
-$ Rscript myscript.R &
-$ ./rtrace -p <PID> -F 50 > Rprof.out
+Rscript myscript.R &
+# sudo is required to attach to the process
+sudo ./rtrace -p <PID> -F 50 | tee Rprof.out
 ```
 
 How is this different from existing R profiling options, such as `Rprof()` or
