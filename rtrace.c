@@ -82,7 +82,7 @@ int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
 
   /* Adapted from R's eval.c code for Rprof. */
 
-  if (cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN) &&
+  if (cursor->cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN | CTXT_CCODE) &&
       TYPEOF(call) == LANGSXP) {
     copy_sexp(cursor->pid, (void *) CAR(call), &fun);
     if (!fun) {
