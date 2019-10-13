@@ -1,7 +1,7 @@
 R_HEADERS := $(shell Rscript -e "cat(R.home('include'))")
 
 CFLAGS := -O2 -Wall -fPIC -g
-LIBS = -ldl
+LIBS = -ldl -lunwind-ptrace -lunwind-generic
 INCLUDES = -I$(R_HEADERS)
 
 all: rtrace
