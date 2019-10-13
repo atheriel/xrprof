@@ -27,11 +27,48 @@ if (length(chunk) == 0) {
 
 chunk <- chunk[-1] # For now, ignore the header.
 
+# Line profiling support.
+src_file_lines <- grepl("^#File", chunk)
+if (any(src_file_lines)) {
+  src_files <- gsub("^#File [0-9]+: (.*)$", "\\1", chunk[src_file_lines])
+  exist <- file.exists(src_files)
+  src_files[!exist] <- gsub("^.*/([^/]+)/R/(.*)$", "\\1:\\2", src_files[!exist])
+
+  # Remove the Srcref annotations.
+  chunk <- chunk[!src_file_lines]
+
+  # Omit srcrefs at the start of lines; we can't really handle them.
+  chunk <- gsub("^[0-9]+#[0-9]+\\s", "", chunk)
+
+  chunk <- strsplit(chunk, "\\s\"")
+} else {
+  chunk <- strsplit(chunk, " ")
+}
+
+process_line <- function(line) {
+  # Annotate functions in a way FlameGraph can understand.
+  line <- gsub("<Native:([^;]+)>", "\\1_[n]", line)
+  line <- gsub("<Built-in:([^;]+)>", "\\1_[i]", line)
+
+  srcrefs <- grepl("[0-9]+#[0-9]+", line)
+  linenos <- gsub(".*\\s[0-9]+#([0-9]+)", "\\1", line[srcrefs])
+  filenos <- as.integer(gsub(".*\\s([0-9]+)#[0-9]+", "\\1", line[srcrefs]))
+  files <- src_files[filenos]
+  srcref_fmt <- paste(files, linenos, sep = ":")
+
+  line <- gsub("\\s[0-9]+#[0-9]+", "", line)
+  line <- gsub("[\" ]", "", line)
+  line[srcrefs] <- paste(line[srcrefs], "at", srcref_fmt)
+
+  line
+}
+
+chunk <- lapply(chunk, process_line)
+
 # Collapse stack listings.
 #
 # NOTE: This is a pretty inelegant approach.
 
-chunk <- strsplit(chunk, " ")
 stacks <- list(chunk[[1]])
 counts <- 1L
 
