@@ -18,7 +18,7 @@
 
 #define MAX_STACK_DEPTH 100
 #define MAX_LIBR_PATH_LEN 128
-#define DEFAULT_FREQ 100
+#define DEFAULT_FREQ 1
 #define MAX_FREQ 1000
 #define DEFAULT_DURATION 3600 // One hour.
 
