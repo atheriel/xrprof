@@ -15,7 +15,10 @@ locate.o: locate.c locate.h
 memory.o: memory.c rtrace.h
 	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
 
-rtrace: rtrace.o locate.o memory.o
+cursor.o: cursor.c rtrace.h
+	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
+
+rtrace: rtrace.o locate.o memory.o cursor.o
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LIBS)
 
 clean:
