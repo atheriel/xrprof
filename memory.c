@@ -3,7 +3,7 @@
 #include <stdlib.h>  /* for realloc */
 #include <sys/uio.h> /* for iovec, process_vm_readv */
 
-#include "rtrace.h"
+#include "rdefs.h"
 
 void copy_context(pid_t pid, void *addr, RCNTXT **data) {
   if (!addr) { /* Makes loops easier. */

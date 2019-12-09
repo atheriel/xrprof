@@ -2,7 +2,9 @@
 #include <sys/ptrace.h> /* for ptrace */
 
 #include "cursor.h"
-#include "rtrace.h"
+#include "rdefs.h"
+#include "locate.h"
+#include "memory.h"
 
 struct rstack_cursor {
   void *rcxt_ptr;

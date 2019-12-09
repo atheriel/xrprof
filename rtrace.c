@@ -1,7 +1,5 @@
-#define _GNU_SOURCE  /* for process_vm_readv */
-
-#include <dlfcn.h>   /* for dlopen, dlsym */
 #include <errno.h>   /* for errno */
+#include <limits.h>  /* for LONG_MIN, LONG_MAX */
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,15 +8,12 @@
 #include <unistd.h>
 #include <sys/ptrace.h>
 #include <sys/types.h>
-#include <sys/uio.h> /* for iovec, process_vm_readv */
 #include <sys/wait.h>
 #include <time.h>    /* for timespec */
 
-#include "rtrace.h"
 #include "cursor.h"
 
 #define MAX_STACK_DEPTH 100
-#define MAX_LIBR_PATH_LEN 128
 #define DEFAULT_FREQ 1
 #define MAX_FREQ 1000
 #define DEFAULT_DURATION 3600 // One hour.

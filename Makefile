@@ -6,16 +6,16 @@ INCLUDES = -I$(R_HEADERS)
 
 all: rtrace
 
-rtrace.o: rtrace.c rtrace.h
+rtrace.o: rtrace.c cursor.h
 	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
 
 locate.o: locate.c locate.h
 	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
 
-memory.o: memory.c rtrace.h
+memory.o: memory.c memory.h rdefs.h
 	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
 
-cursor.o: cursor.c rtrace.h
+cursor.o: cursor.c cursor.h rdefs.h locate.h memory.h
 	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
 
 rtrace: rtrace.o locate.o memory.o cursor.o

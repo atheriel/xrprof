@@ -1,4 +1,5 @@
-#include "locate.h"
+#ifndef RTRACE_RDEFS_H
+#define RTRACE_RDEFS_H
 
 #define USE_RINTERNALS
 #include <Rinternals.h>
@@ -71,7 +72,4 @@ enum {
       CTXT_UNWIND   = 128
 };
 
-/* Defined in memory.c. */
-void copy_context(pid_t pid, void *addr, RCNTXT **data);
-void copy_sexp(pid_t pid, void *addr, SEXP *data);
-void copy_char(pid_t pid, void *addr, char **data);
+#endif /* RTRACE_RDEFS_H */
