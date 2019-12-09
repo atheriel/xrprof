@@ -18,6 +18,18 @@
 #define MAX_FREQ 1000
 #define DEFAULT_DURATION 3600 // One hour.
 
+struct prof_options {
+  pid_t pid;
+  int freq;
+  float duration;
+};
+
+void prof_options_init(struct prof_options *opts) {
+  opts->pid = -1;
+  opts->freq = DEFAULT_FREQ;
+  opts->duration = DEFAULT_DURATION;
+}
+
 static volatile int should_trace = 1;
 
 void handle_sigint(int _sig) {
@@ -31,10 +43,9 @@ void usage(const char *name) {
 }
 
 int main(int argc, char **argv) {
-  pid_t pid = -1;
-  int freq = DEFAULT_FREQ;
-  float duration = DEFAULT_DURATION;
   int verbose = 0;
+  struct prof_options opts;
+  prof_options_init(&opts);
 
   int opt;
   while ((opt = getopt(argc, argv, "hvF:d:p:")) != -1) {
@@ -47,42 +58,42 @@ int main(int argc, char **argv) {
       verbose++;
       break;
     case 'p':
-      pid = strtol(optarg, NULL, 10);
-      if ((errno == ERANGE && (pid == LONG_MAX || pid == LONG_MIN)) ||
-          (errno != 0 && pid == 0)) {
+      opts.pid = strtol(optarg, NULL, 10);
+      if ((errno == ERANGE && (opts.pid == LONG_MAX || opts.pid == LONG_MIN)) ||
+          (errno != 0 && opts.pid == 0)) {
         perror("strtol");
         return 1;
       }
-      if (pid < 0) {
+      if (opts.pid < 0) {
         fprintf(stderr, "cannot accept negative pids\n");
         return 1;
       }
       break;
     case 'F':
-      freq = strtol(optarg, NULL, 10);
-      if ((errno == ERANGE && (freq == LONG_MAX || freq == LONG_MIN)) ||
-          (errno != 0 && freq == 0)) {
+      opts.freq = strtol(optarg, NULL, 10);
+      if ((errno == ERANGE && (opts.freq == LONG_MAX || opts.freq == LONG_MIN)) ||
+          (errno != 0 && opts.freq == 0)) {
         perror("strtol");
         return 1;
       }
-      if (freq < 0) {
-        freq = DEFAULT_FREQ;
+      if (opts.freq < 0) {
+        opts.freq = DEFAULT_FREQ;
         fprintf(stderr, "Invalid frequency, falling back on the default %d.\n",
-                freq);
-      } else if (freq > MAX_FREQ) {
-        freq = MAX_FREQ;
+                opts.freq);
+      } else if (opts.freq > MAX_FREQ) {
+        opts.freq = MAX_FREQ;
         fprintf(stderr, "Frequency cannot exceed %d, using that instead.\n",
-                freq);
+                opts.freq);
       }
       break;
     case 'd':
-      duration = strtof(optarg, NULL);
-      if (errno != 0 && duration == 0) {
+      opts.duration = strtof(optarg, NULL);
+      if (errno != 0 && opts.duration == 0) {
         perror("strtof");
         return 1;
       }
-      if (duration < 0) {
-        duration = DEFAULT_DURATION;
+      if (opts.duration < 0) {
+        opts.duration = DEFAULT_DURATION;
         fprintf(stderr, "Invalid duration, ignoring.\n");
       }
       break;
@@ -94,25 +105,25 @@ int main(int argc, char **argv) {
   }
 
   // A PID is required.
-  if (pid == -1) {
+  if (opts.pid == -1) {
     usage(argv[0]);
     return 1;
   }
 
   struct timespec sleep_spec;
-  sleep_spec.tv_sec = freq == 1 ? 1 : 0;
-  sleep_spec.tv_nsec = freq == 1 ? 0 : 1000000000 / freq;
+  sleep_spec.tv_sec = opts.freq == 1 ? 1 : 0;
+  sleep_spec.tv_nsec = opts.freq == 1 ? 0 : 1000000000 / opts.freq;
 
   int code = 0;
 
   /* First, check that we can attach to the process. */
 
-  if (ptrace(PTRACE_SEIZE, pid, NULL, NULL)) {
+  if (ptrace(PTRACE_SEIZE, opts.pid, NULL, NULL)) {
     perror("Error in ptrace SEIZE");
     return 1;
   }
 
-  struct rstack_cursor *cursor = rstack_create(pid);
+  struct rstack_cursor *cursor = rstack_create(opts.pid);
 
 
   /* Stop the tracee and read the R stack information. */
@@ -122,25 +133,25 @@ int main(int argc, char **argv) {
   float elapsed = 0;
 
   // Write the Rprof.out header.
-  printf("sample.interval=%d\n", 1000000 / freq);
+  printf("sample.interval=%d\n", 1000000 / opts.freq);
 
-  while (should_trace && elapsed <= duration) {
-    if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
+  while (should_trace && elapsed <= opts.duration) {
+    if (ptrace(PTRACE_INTERRUPT, opts.pid, NULL, NULL)) {
       perror("ptrace INTERRUPT");
       code++;
       goto done;
     }
     int wstatus;
-    if (waitpid(pid, &wstatus, 0) < 0) {
+    if (waitpid(opts.pid, &wstatus, 0) < 0) {
       perror("waitpid");
       code++;
       goto done;
     }
     if (WIFEXITED(wstatus)) {
-      fprintf(stderr, "Process %d finished.\n", pid);
+      fprintf(stderr, "Process %d finished.\n", opts.pid);
       break;
     } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGCHLD) {
-      ptrace(PTRACE_CONT, pid, NULL, NULL);
+      ptrace(PTRACE_CONT, opts.pid, NULL, NULL);
       continue;
     } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) != SIGTRAP) {
       fprintf(stderr, "Unexpected stop signal: %d\n", WSTOPSIG(wstatus));
@@ -179,7 +190,7 @@ int main(int argc, char **argv) {
     }
     printf("\n");
 
-    if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
+    if (ptrace(PTRACE_CONT, opts.pid, NULL, NULL)) {
       perror("ptrace CONT");
       code++;
       goto done;
@@ -187,11 +198,11 @@ int main(int argc, char **argv) {
     if (nanosleep(&sleep_spec, NULL) < 0) {
       break; // Interupted.
     }
-    elapsed = elapsed + 1.0 / freq;
+    elapsed = elapsed + 1.0 / opts.freq;
   }
 
  done:
-  ptrace(PTRACE_DETACH, pid, NULL, NULL);
+  ptrace(PTRACE_DETACH, opts.pid, NULL, NULL);
 
   return code;
 }
