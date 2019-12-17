@@ -17,6 +17,7 @@ struct rstack_cursor {
 struct rstack_cursor *rstack_create(pid_t pid) {
   /* Find the symbols and addresses we need. */
   libR_globals globals = locate_libR_globals(pid);
+  if (!globals) return NULL;
 
   struct rstack_cursor *out = malloc(sizeof(struct rstack_cursor));
   out->rcxt_ptr = NULL;

@@ -113,7 +113,11 @@ int main(int argc, char **argv) {
   }
 
   struct rstack_cursor *cursor = rstack_create(pid);
-
+  if (!cursor) {
+    fprintf(stderr, "Failed to initialize cursor.\n");
+    code++;
+    goto done;
+  }
 
   /* Stop the tracee and read the R stack information. */
 
