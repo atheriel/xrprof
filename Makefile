@@ -24,4 +24,10 @@ rtrace: rtrace.o locate.o memory.o cursor.o
 clean:
 	rm -f rtrace
 
-.PHONY: all clean
+TEST_PROFILES := tests/sleep.out
+test: $(TEST_PROFILES)
+
+tests/%.out: tests/%.R
+	sudo tests/harness.sh $<
+
+.PHONY: all clean test
