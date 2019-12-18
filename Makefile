@@ -22,7 +22,7 @@ rtrace: rtrace.o locate.o memory.o cursor.o
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LIBS)
 
 clean:
-	rm -f rtrace
+	rm -f rtrace *.o
 
 TEST_PROFILES := tests/sleep.out
 test: $(TEST_PROFILES)
