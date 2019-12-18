@@ -5,18 +5,24 @@ R_HEADERS ?= $(shell Rscript -e "cat(R.home('include'))")
 CFLAGS += -I$(R_HEADERS)
 
 BIN := rtrace
+BINOBJ := rtrace.o
 OBJ := cursor.o \
   locate.o \
-  memory.o \
-  rtrace.o
+  memory.o
+SHLIB := librtrace.so
 
 all: $(BIN)
 
 clean:
-	$(RM) $(BIN) $(OBJ)
+	$(RM) $(BIN) $(BINOBJ) $(OBJ) $(SHLIB)
 
-$(BIN): $(OBJ)
+$(BIN): $(OBJ) $(BINOBJ)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+shlib: $(SHLIB)
+
+$(SHLIB): $(OBJ)
+	$(CC) $(LDFLAGS) -shared -o $@ $^
 
 cursor.o: cursor.c cursor.h rdefs.h locate.h memory.h
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -47,5 +53,9 @@ libdir = $(prefix)/lib
 install:
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -T -m 0755 $(BIN) $(DESTDIR)$(bindir)/$(BIN)
+
+install-shlib:
+	$(INSTALL) -d $(DESTDIR)$(libdir)
+	$(INSTALL) -T -m 0644 $(SHLIB) $(DESTDIR)$(libdir)/$(SHLIB)
 
 .PHONY: all clean test install
