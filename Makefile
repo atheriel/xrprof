@@ -36,4 +36,16 @@ test: $(TEST_PROFILES)
 tests/%.out: tests/%.R
 	sudo tests/harness.sh $<
 
-.PHONY: all clean test
+# Mostly compatible with https://www.gnu.org/prep/standards/html_node/Makefile-Conventions.html
+INSTALL = install
+prefix = /usr/local
+bindir = $(prefix)/bin
+datadir = $(prefix)/share
+includedir = $(prefix)/include
+libdir = $(prefix)/lib
+
+install:
+	$(INSTALL) -d $(DESTDIR)$(bindir)
+	$(INSTALL) -T -m 0755 $(BIN) $(DESTDIR)$(bindir)/$(BIN)
+
+.PHONY: all clean test install
