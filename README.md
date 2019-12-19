@@ -35,6 +35,18 @@ The project was inspired by Julia Evan's blog posts on writing
 [`rbspy`](https://rbspy.github.io/) and later by my discovery of Evan Klitzke's
 work (and writing) on [Pyflame](https://github.com/uber/pyflame).
 
+## Installation
+
+You must build from source. Clone (or download) the repository and run
+
+```console
+$ make
+$ sudo make install
+```
+
+This will build the binary and install it to `/usr/local/bin`. The `install`
+target supports `prefix` and `DESTDIR`.
+
 ## Okay, How Does it Work?
 
 Much like other sampling profilers, the program uses Linux's `ptrace` system
