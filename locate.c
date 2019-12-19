@@ -18,6 +18,7 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
     perror("fopen");
     return -1;
   }
+  *path = NULL;
 
   char buffer[1024];
   while (fgets(buffer, sizeof(buffer), file)) {
@@ -37,6 +38,12 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   }
 
   fclose(file);
+
+  /* Either (1) this R program does not use libR.so, or (2) it's not actually an
+     R program. */
+  if (!*path) {
+    return -1;
+  }
   return 0;
 }
 
@@ -73,7 +80,8 @@ libR_globals locate_libR_globals(pid_t pid) {
   char *path = NULL;
   uintptr_t remote;
   if (find_libR(pid, &path, &remote) < 0) {
-    fprintf(stderr, "could not locate libR.so in process memory");
+    fprintf(stderr, "Could not locate libR.so in process %d's memory. Are you sure it is an R program?\n",
+            pid);
     return NULL;
   }
 
@@ -89,7 +97,7 @@ libR_globals locate_libR_globals(pid_t pid) {
 
   uintptr_t local;
   if (find_libR(getpid(), &path, &local) < 0) {
-    fprintf(stderr, "could not locate libR.so in process memory");
+    fprintf(stderr, "Could not load libR.so into local memory.\n");
     return NULL;
   }
 
