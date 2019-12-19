@@ -35,7 +35,12 @@ void rstack_destroy(struct rstack_cursor *cursor) {
     free(cursor->cptr);
     cursor->cptr = NULL;
   }
-  free(cursor);
+  if (cursor->globals) {
+    free(cursor->globals);
+  }
+  if (cursor) {
+    free(cursor);
+  }
   return;
 }
 
@@ -98,6 +103,9 @@ int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
         /*         (void *) CAR(fun), (void *) lhs, (void *) rhs); */
         written = snprintf(buff, len, "<Unimplemented>");
       }
+      free(cdr);
+      free(lhs);
+      free(rhs);
     } else {
       fprintf(stderr, "TYPEOF(fun): %d\n", TYPEOF(fun));
       written = snprintf(buff, len, "<Anonymous>");

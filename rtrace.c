@@ -196,6 +196,7 @@ int main(int argc, char **argv) {
 
  done:
   ptrace(PTRACE_DETACH, pid, NULL, NULL);
+  rstack_destroy(cursor);
 
   return code;
 }
