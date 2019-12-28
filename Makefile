@@ -53,6 +53,7 @@ libdir = $(prefix)/lib
 install:
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -T -m 0755 $(BIN) $(DESTDIR)$(bindir)/$(BIN)
+	setcap cap_sys_ptrace=eip $(DESTDIR)$(bindir)/$(BIN)
 
 install-shlib:
 	$(INSTALL) -d $(DESTDIR)$(libdir)
