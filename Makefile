@@ -59,4 +59,18 @@ install-shlib:
 	$(INSTALL) -d $(DESTDIR)$(libdir)
 	$(INSTALL) -T -m 0644 $(SHLIB) $(DESTDIR)$(libdir)/$(SHLIB)
 
-.PHONY: all clean test install
+PACKAGE = $(BIN)
+VERSION := $(shell git describe --tags --always | sed 's/^v//g')
+DISTDIR = $(PACKAGE)-$(VERSION)
+
+dist:
+	$(INSTALL) -d $(DISTDIR)
+	$(RM) $(DISTDIR)/*
+	cp *.c *.h Makefile README.md $(DISTDIR)/
+	tar -czf $(DISTDIR).tar.gz $(DISTDIR)
+	$(RM) -r $(DISTDIR)
+	sha256sum $(DISTDIR).tar.gz > $(DISTDIR).tar.gz.sha256
+
+distclean: clean
+
+.PHONY: all clean test install dist distclean
