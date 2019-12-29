@@ -73,7 +73,7 @@ static uintptr_t sym_value(void * dlhandle, pid_t pid, uintptr_t local, uintptr_
   return (uintptr_t) value;
 }
 
-libR_globals locate_libR_globals(pid_t pid) {
+int locate_libR_globals(pid_t pid, libR_globals *globals) {
   /* Open the same libR.so in the tracer so we can determine the symbol offsets
      to read memory at in the tracee. */
 
@@ -82,7 +82,7 @@ libR_globals locate_libR_globals(pid_t pid) {
   if (find_libR(pid, &path, &remote) < 0) {
     fprintf(stderr, "Could not locate libR.so in process %d's memory. Are you sure it is an R program?\n",
             pid);
-    return NULL;
+    return -1;
   }
 
   /* if (verbose) fprintf(stderr, "Found %s at %p in pid %d.\n", path, */
@@ -91,14 +91,14 @@ libR_globals locate_libR_globals(pid_t pid) {
   void *dlhandle = dlopen(path, RTLD_LAZY);
   if (!dlhandle) {
     fprintf(stderr, "%s\n", dlerror());
-    return NULL;
+    return -1;
   }
   free(path);
 
   uintptr_t local;
   if (find_libR(getpid(), &path, &local) < 0) {
     fprintf(stderr, "Could not load libR.so into local memory.\n");
-    return NULL;
+    return -1;
   }
 
   /* if (verbose) fprintf(stderr, "Found %s at %p locally.\n", path, */
@@ -111,7 +111,7 @@ libR_globals locate_libR_globals(pid_t pid) {
   ptrdiff_t context_offset = sym_offset(dlhandle, local, "R_GlobalContext");
   if (!context_offset) {
     fprintf(stderr, "%s\n", dlerror());
-    return NULL;
+    return -1;
   }
 
   /* For many global symbols, the values will never change, so we can just keep
@@ -119,12 +119,12 @@ libR_globals locate_libR_globals(pid_t pid) {
 
   if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
     perror("ptrace INTERRUPT");
-    return NULL;
+    return -1;
   }
   int wstatus;
   if (waitpid(pid, &wstatus, 0) < 0) {
     perror("waitpid");
-    return NULL;
+    return -1;
   }
 
   libR_globals ret = (libR_globals) malloc(sizeof(struct libR_globals_s));
@@ -146,7 +146,13 @@ libR_globals locate_libR_globals(pid_t pid) {
     perror("ptrace CONT");
     free(ret);
     ret = NULL;
+    return -1;
   }
 
-  return ret;
+  if (!ret) {
+    return -1;
+  }
+
+  *globals = ret;
+  return 0;
 }
