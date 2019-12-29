@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
         return 1;
       }
       if (pid < 0) {
-        fprintf(stderr, "cannot accept negative pids\n");
+        fprintf(stderr, "fatal: Cannot accept negative pids as input.\n");
         return 1;
       }
       break;
@@ -62,22 +62,23 @@ int main(int argc, char **argv) {
       freq = strtol(optarg, NULL, 10);
       if (freq <= 0) {
         freq = DEFAULT_FREQ;
-        fprintf(stderr, "Invalid frequency, falling back on the default %d.\n",
+        fprintf(stderr, "warning: Invalid frequency argument, falling back on the default %d.\n",
                 freq);
       } else if (freq > MAX_FREQ) {
         freq = MAX_FREQ;
-        fprintf(stderr, "Frequency cannot exceed %d, using that instead.\n",
+        fprintf(stderr, "warning: Frequency cannot exceed %d, using that instead.\n",
                 freq);
       }
       break;
     case 'd':
       duration = strtof(optarg, NULL);
       if (errno != 0 && duration == 0) {
-        perror("strtof");
+        perror("warning: Failed to decode duration argument");
       }
       if (duration <= 0) {
         duration = DEFAULT_DURATION;
-        fprintf(stderr, "Invalid duration, ignoring.\n");
+        fprintf(stderr, "warning: Invalid duration argument, failling back on the default %.0f.\n",
+                duration);
       }
       break;
     default: /* '?' */
@@ -102,13 +103,13 @@ int main(int argc, char **argv) {
   /* First, check that we can attach to the process. */
 
   if (ptrace(PTRACE_SEIZE, pid, NULL, NULL)) {
-    perror("Error in ptrace SEIZE");
+    perror("fatal: Failed to attach to remote process");
     return 1;
   }
 
   struct rstack_cursor *cursor = rstack_create(pid);
   if (!cursor) {
-    fprintf(stderr, "Failed to initialize cursor.\n");
+    fprintf(stderr, "fatal: Failed to initialize R stack cursor.\n");
     code++;
     goto done;
   }
@@ -124,13 +125,13 @@ int main(int argc, char **argv) {
 
   while (should_trace && elapsed <= duration) {
     if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
-      perror("ptrace INTERRUPT");
+      perror("fatal: Failed to interrupt remote process");
       code++;
       goto done;
     }
     int wstatus;
     if (waitpid(pid, &wstatus, 0) < 0) {
-      perror("waitpid");
+      perror("fatal: Failed to obtain remote process status information");
       code++;
       goto done;
     }
@@ -141,11 +142,13 @@ int main(int argc, char **argv) {
       ptrace(PTRACE_CONT, pid, NULL, NULL);
       continue;
     } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) != SIGTRAP) {
-      fprintf(stderr, "Unexpected stop signal: %d\n", WSTOPSIG(wstatus));
+      fprintf(stderr, "fatal: Unexpected stop signal in remote process: %d.\n",
+              WSTOPSIG(wstatus));
       code++;
       goto done;
     } else if (!WIFSTOPPED(wstatus)) {
-      fprintf(stderr, "Unexpected waitpid status: %d\n", WSTOPSIG(wstatus));
+      fprintf(stderr, "fatal: Unexpected remote process status: %d.\n",
+              WSTOPSIG(wstatus));
       code++;
       goto done;
     }
@@ -154,7 +157,7 @@ int main(int argc, char **argv) {
     char rsym[256];
     if ((ret = rstack_init(cursor)) < 0) {
       code++;
-      fprintf(stderr, "Failed to init R cursor: %d.\n", ret);
+      fprintf(stderr, "fatal: Failed to initialize R stack cursor: %d.\n", ret);
       goto done;
     }
 
@@ -172,13 +175,13 @@ int main(int argc, char **argv) {
 
     if (ret < 0) {
       code++;
-      fprintf(stderr, "Failed to step R cursor: %d.\n", ret);
+      fprintf(stderr, "fatal: Failed to step R stack cursor: %d.\n", ret);
       goto done;
     }
     printf("\n");
 
     if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
-      perror("ptrace CONT");
+      perror("fatal: Failed to continue remote process");
       code++;
       goto done;
     }

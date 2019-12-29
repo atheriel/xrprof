@@ -15,7 +15,9 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   snprintf(maps_file, sizeof(maps_file), "/proc/%d/maps", pid);
   FILE *file = fopen(maps_file, "r");
   if (!file) {
-    perror("fopen");
+    char msg[51]; // 19 for the message + 32 for the buffer above.
+    snprintf(msg, 51, "error: Cannot open %s", maps_file);
+    perror(msg);
     return -1;
   }
   *path = NULL;
@@ -50,6 +52,7 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
 static ptrdiff_t sym_offset(void * dlhandle, uintptr_t start, const char *sym) {
   void* addr = dlsym(dlhandle, sym);
   if (!addr) {
+    fprintf(stderr, "error: Failed to locate symbol %s: %s.\n", sym, dlerror());
     return 0; // This would never make sense, anyway.
   }
 
@@ -59,14 +62,14 @@ static ptrdiff_t sym_offset(void * dlhandle, uintptr_t start, const char *sym) {
 static uintptr_t sym_value(void * dlhandle, pid_t pid, uintptr_t local, uintptr_t remote, const char *sym) {
   ptrdiff_t offset = sym_offset(dlhandle, local, sym);
   if (!offset) {
-    fprintf(stderr, "%s\n", dlerror());
-    return -1;
+    /* sym_offset() will print its own error message. */
+    return 0;
   }
   long value = ptrace(PTRACE_PEEKTEXT, pid, remote + offset, NULL);
   /* fprintf(stderr, "sym=%s; offset=%p; addr=%p; value=%p\n", */
   /*         sym, (void *) offset, (void *) remote + offset, (void *) value); */
   if (value < 0) {
-    perror("ptrace PEEKTEXT");
+    perror("error: Failed to read memory in the remote process");
     return 0;
   }
 
@@ -80,7 +83,7 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
   char *path = NULL;
   uintptr_t remote;
   if (find_libR(pid, &path, &remote) < 0) {
-    fprintf(stderr, "Could not locate libR.so in process %d's memory. Are you sure it is an R program?\n",
+    fprintf(stderr, "error: Could not locate libR.so in process %d's memory. Are you sure it is an R program?\n",
             pid);
     return -1;
   }
@@ -90,14 +93,14 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
 
   void *dlhandle = dlopen(path, RTLD_LAZY);
   if (!dlhandle) {
-    fprintf(stderr, "%s\n", dlerror());
+    fprintf(stderr, "error: Failed to dlopen() libR.so: %s\n", dlerror());
     return -1;
   }
   free(path);
 
   uintptr_t local;
   if (find_libR(getpid(), &path, &local) < 0) {
-    fprintf(stderr, "Could not load libR.so into local memory.\n");
+    fprintf(stderr, "error: Failed to load libR.so into local memory.\n");
     return -1;
   }
 
@@ -110,7 +113,7 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
 
   ptrdiff_t context_offset = sym_offset(dlhandle, local, "R_GlobalContext");
   if (!context_offset) {
-    fprintf(stderr, "%s\n", dlerror());
+    /* sym_offset() will print its own error message. */
     return -1;
   }
 
@@ -118,12 +121,12 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
      track of them directly. */
 
   if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
-    perror("ptrace INTERRUPT");
+    perror("error: Failed to interrupt remote process");
     return -1;
   }
   int wstatus;
   if (waitpid(pid, &wstatus, 0) < 0) {
-    perror("waitpid");
+    perror("error: Failed to obtain remote process status information");
     return -1;
   }
 
@@ -135,6 +138,7 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
   ret->bracket = sym_value(dlhandle, pid, local, remote, "R_BracketSymbol");
   if (!ret->doublecolon || !ret->triplecolon || !ret->dollar ||
       !ret->bracket) {
+    fprintf(stderr, "error: Failed to locate required R global variables.\n");
     free(ret);
     ret = NULL;
   }
@@ -143,7 +147,7 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
 
   dlclose(dlhandle);
   if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
-    perror("ptrace CONT");
+    perror("error: Failed to continue remote process");
     free(ret);
     ret = NULL;
     return -1;

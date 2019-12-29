@@ -60,7 +60,7 @@ int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
 
   copy_sexp(cursor->pid, (void *) cursor->cptr->call, &call);
   if (!call) {
-    fprintf(stderr, "could not read call\n");
+    fprintf(stderr, "error: Could not read SEXP for current call.\n");
     return -1;
   }
 
@@ -70,7 +70,7 @@ int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
       TYPEOF(call) == LANGSXP) {
     copy_sexp(cursor->pid, (void *) CAR(call), &fun);
     if (!fun) {
-      fprintf(stderr, "lang item has no CAR\n");
+      fprintf(stderr, "error: Unexpected R structure: current call lang item has no CAR.\n");
       return -1;
     }
     if (TYPEOF(fun) == SYMSXP) {
@@ -131,7 +131,7 @@ int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
 int rstack_init(struct rstack_cursor *cursor) {
   long context_ptr = ptrace(PTRACE_PEEKTEXT, cursor->pid, cursor->globals->context_addr, NULL);
   if (context_ptr < 0) {
-    perror("Error in ptrace PEEKTEXT");
+    perror("error: Failed to read memory in the remote process");
     return -1;
   }
 

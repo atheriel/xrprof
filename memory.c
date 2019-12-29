@@ -23,10 +23,10 @@ void copy_context(pid_t pid, void *addr, RCNTXT **data) {
 
   size_t bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
   if (bytes < 0) {
-    perror("process_vm_readv");
+    perror("error: Failed to read memory in the remote process");
     goto fail;
   } else if (bytes < len) {
-    fprintf(stderr, "partial read of RCNTXT data\n");
+    fprintf(stderr, "error: Partial read of memory in remote process.\n");
     goto fail;
   }
   return;
@@ -55,10 +55,10 @@ void copy_sexp(pid_t pid, void *addr, SEXP *data) {
 
   size_t bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
   if (bytes < 0) {
-    perror("process_vm_readv");
+    perror("error: Failed to read memory in the remote process");
     goto fail;
   } else if (bytes < len) {
-    fprintf(stderr, "partial read of SEXP data\n");
+    fprintf(stderr, "error: Partial read of memory in remote process.\n");
     goto fail;
   }
   return;
@@ -91,10 +91,10 @@ void copy_char(pid_t pid, void *addr, char **data) {
 
   bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
   if (bytes < 0) {
-    perror("process_vm_readv");
+    perror("error: Failed to read memory in the remote process");
     goto fail;
   } else if (bytes < len) {
-    fprintf(stderr, "partial read of VECSEXP data\n");
+    fprintf(stderr, "error: Partial read of memory in remote process.\n");
     goto fail;
   }
 
@@ -111,10 +111,10 @@ void copy_char(pid_t pid, void *addr, char **data) {
 
   bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
   if (bytes < 0) {
-    perror("process_vm_readv");
+    perror("error: Failed to read memory in the remote process");
     goto fail;
   } else if (bytes < len) {
-    fprintf(stderr, "partial read of CHAR data\n");
+    fprintf(stderr, "error: Partial read of memory in remote process.\n");
     goto fail;
   }
 
