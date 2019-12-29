@@ -60,12 +60,7 @@ int main(int argc, char **argv) {
       break;
     case 'F':
       freq = strtol(optarg, NULL, 10);
-      if ((errno == ERANGE && (freq == LONG_MAX || freq == LONG_MIN)) ||
-          (errno != 0 && freq == 0)) {
-        perror("strtol");
-        return 1;
-      }
-      if (freq < 0) {
+      if (freq <= 0) {
         freq = DEFAULT_FREQ;
         fprintf(stderr, "Invalid frequency, falling back on the default %d.\n",
                 freq);
@@ -79,9 +74,8 @@ int main(int argc, char **argv) {
       duration = strtof(optarg, NULL);
       if (errno != 0 && duration == 0) {
         perror("strtof");
-        return 1;
       }
-      if (duration < 0) {
+      if (duration <= 0) {
         duration = DEFAULT_DURATION;
         fprintf(stderr, "Invalid duration, ignoring.\n");
       }
