@@ -30,18 +30,16 @@ struct rstack_cursor *rstack_create(pid_t pid) {
 }
 
 void rstack_destroy(struct rstack_cursor *cursor) {
-  /* Clear any existing RCXT data. */
+  if (!cursor) {
+    return;
+  }
   if (cursor->cptr) {
     free(cursor->cptr);
-    cursor->cptr = NULL;
   }
   if (cursor->globals) {
     free(cursor->globals);
   }
-  if (cursor) {
-    free(cursor);
-  }
-  return;
+  return free(cursor);
 }
 
 int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
