@@ -5,6 +5,7 @@
 #include <string.h>     /* for strstr, strndup */
 #ifdef __APPLE__
 #include <sys/types.h> /* needed for ptrace on macOS */
+#define PTRACE_PEEKTEXT 1 /* equivalent to PT_READ_I */
 #endif
 #include <sys/ptrace.h> /* for ptrace */
 #include <sys/wait.h>   /* for waitpid */

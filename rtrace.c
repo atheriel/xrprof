@@ -13,6 +13,14 @@
 
 #include "cursor.h"
 
+#ifdef __APPLE__
+/* ptrace Portability Layer */
+#define PTRACE_SEIZE     10
+#define PTRACE_INTERRUPT 10
+#define PTRACE_CONT      7
+#define PTRACE_DETACH    11
+#endif
+
 #define MAX_STACK_DEPTH 100
 #define DEFAULT_FREQ 1
 #define MAX_FREQ 1000
