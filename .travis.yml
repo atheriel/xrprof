@@ -1,6 +1,13 @@
 language: c
 script: make && make test
-addons:
-  apt:
-    packages:
-      - r-base
+matrix:
+  include:
+    - os: linux
+      addons:
+        apt_packages:
+          - r-base
+    - os: osx
+      addons:
+        homebrew:
+          packages:
+            - r
