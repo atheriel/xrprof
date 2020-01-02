@@ -1,4 +1,7 @@
 #include <stdlib.h>     /* for malloc, free */
+#ifdef __APPLE__
+#include <sys/types.h> /* needed for ptrace on macOS */
+#endif
 #include <sys/ptrace.h> /* for ptrace */
 
 #include "cursor.h"

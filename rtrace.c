@@ -6,8 +6,8 @@
 #include <stdint.h>  /* for uintptr_t */
 #include <string.h>
 #include <unistd.h>
-#include <sys/ptrace.h>
 #include <sys/types.h>
+#include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <time.h>    /* for timespec */
 

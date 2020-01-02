@@ -3,6 +3,9 @@
 #include <stdio.h>      /* for fprintf */
 #include <stdlib.h>     /* for malloc */
 #include <string.h>     /* for strstr, strndup */
+#ifdef __APPLE__
+#include <sys/types.h> /* needed for ptrace on macOS */
+#endif
 #include <sys/ptrace.h> /* for ptrace */
 #include <sys/wait.h>   /* for waitpid */
 
