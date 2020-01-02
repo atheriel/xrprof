@@ -4,6 +4,11 @@
 #define USE_RINTERNALS
 #include <Rinternals.h>
 
+/* Hacky backport for 3.4.4. */
+#ifndef STDVEC_DATAPTR
+#define STDVEC_DATAPTR DATAPTR
+#endif
+
 /* The remainder is extracted from R/Defs.h */
 
 #undef BC_INT_STACK
