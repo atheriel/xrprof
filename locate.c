@@ -7,6 +7,7 @@
 #include <sys/wait.h>   /* for waitpid */
 
 #include "locate.h"
+#include "memory.h"
 
 #define MAX_LIBR_PATH_LEN 128
 
@@ -65,15 +66,17 @@ static uintptr_t sym_value(void * dlhandle, pid_t pid, uintptr_t local, uintptr_
     /* sym_offset() will print its own error message. */
     return 0;
   }
-  long value = ptrace(PTRACE_PEEKTEXT, pid, remote + offset, NULL);
+  uintptr_t value;
+  size_t bytes = copy_address(pid, (void *)remote + offset, &value,
+                              sizeof(uintptr_t));
   /* fprintf(stderr, "sym=%s; offset=%p; addr=%p; value=%p\n", */
   /*         sym, (void *) offset, (void *) remote + offset, (void *) value); */
-  if (value < 0) {
-    perror("error: Failed to read memory in the remote process");
+  if (bytes < sizeof(uintptr_t)) {
+    /* copy_address() will have already printed an error. */
     return 0;
   }
 
-  return (uintptr_t) value;
+  return value;
 }
 
 int locate_libR_globals(pid_t pid, libR_globals *globals) {

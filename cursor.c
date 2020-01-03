@@ -1,5 +1,4 @@
 #include <stdlib.h>     /* for malloc, free */
-#include <sys/ptrace.h> /* for ptrace */
 
 #include "cursor.h"
 #include "rdefs.h"
@@ -127,9 +126,11 @@ int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
 }
 
 int rstack_init(struct rstack_cursor *cursor) {
-  long context_ptr = ptrace(PTRACE_PEEKTEXT, cursor->pid, cursor->globals->context_addr, NULL);
-  if (context_ptr < 0) {
-    perror("error: Failed to read memory in the remote process");
+  uintptr_t context_ptr;
+  size_t bytes = copy_address(cursor->pid, (void *)cursor->globals->context_addr,
+                              &context_ptr, sizeof(uintptr_t));
+  if (bytes < sizeof(uintptr_t)) {
+    /* copy_address() will have already printed an error. */
     return -1;
   }
 
