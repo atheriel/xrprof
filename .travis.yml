@@ -1,0 +1,6 @@
+language: c
+script: make && make test
+addons:
+  apt:
+    packages:
+      - r-base

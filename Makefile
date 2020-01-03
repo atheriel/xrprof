@@ -1,27 +1,76 @@
-R_HEADERS := $(shell Rscript -e "cat(R.home('include'))")
+CFLAGS += -O2 -Wall -fPIC -g
+LIBS := -ldl
 
-CFLAGS := -O2 -Wall -fPIC -g
-LIBS = -ldl
-INCLUDES = -I$(R_HEADERS)
+R_HEADERS ?= $(shell Rscript -e "cat(R.home('include'))")
+CFLAGS += -I$(R_HEADERS)
 
-all: rtrace
+BIN := rtrace
+BINOBJ := rtrace.o
+OBJ := cursor.o \
+  locate.o \
+  memory.o
+SHLIB := librtrace.so
 
-rtrace.o: rtrace.c cursor.h
-	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
-
-locate.o: locate.c locate.h
-	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
-
-memory.o: memory.c memory.h rdefs.h
-	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
-
-cursor.o: cursor.c cursor.h rdefs.h locate.h memory.h
-	$(CC) -c $(CFLAGS) $(INCLUDES) $< -o $@
-
-rtrace: rtrace.o locate.o memory.o cursor.o
-	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LIBS)
+all: $(BIN)
 
 clean:
-	rm -f rtrace
+	$(RM) $(BIN) $(BINOBJ) $(OBJ) $(SHLIB)
 
-.PHONY: all clean
+$(BIN): $(OBJ) $(BINOBJ)
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+shlib: $(SHLIB)
+
+$(SHLIB): $(OBJ)
+	$(CC) $(LDFLAGS) -shared -o $@ $^
+
+cursor.o: cursor.c cursor.h rdefs.h locate.h memory.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+locate.o: locate.c locate.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+memory.o: memory.c memory.h rdefs.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+rtrace.o: rtrace.c cursor.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+TEST_PROFILES := tests/sleep.out
+test: $(TEST_PROFILES)
+
+tests/%.out: tests/%.R
+	sudo tests/harness.sh $<
+
+# Mostly compatible with https://www.gnu.org/prep/standards/html_node/Makefile-Conventions.html
+INSTALL = install
+prefix = /usr/local
+bindir = $(prefix)/bin
+datadir = $(prefix)/share
+includedir = $(prefix)/include
+libdir = $(prefix)/lib
+
+install:
+	$(INSTALL) -d $(DESTDIR)$(bindir)
+	$(INSTALL) -T -m 0755 $(BIN) $(DESTDIR)$(bindir)/$(BIN)
+	setcap cap_sys_ptrace=eip $(DESTDIR)$(bindir)/$(BIN)
+
+install-shlib:
+	$(INSTALL) -d $(DESTDIR)$(libdir)
+	$(INSTALL) -T -m 0644 $(SHLIB) $(DESTDIR)$(libdir)/$(SHLIB)
+
+PACKAGE = $(BIN)
+VERSION := $(shell git describe --tags --always | sed 's/^v//g')
+DISTDIR = $(PACKAGE)-$(VERSION)
+
+dist:
+	$(INSTALL) -d $(DISTDIR)
+	$(RM) $(DISTDIR)/*
+	cp *.c *.h Makefile README.md $(DISTDIR)/
+	tar -czf $(DISTDIR).tar.gz $(DISTDIR)
+	$(RM) -r $(DISTDIR)
+	sha256sum $(DISTDIR).tar.gz > $(DISTDIR).tar.gz.sha256
+
+distclean: clean
+
+.PHONY: all clean test install dist distclean
