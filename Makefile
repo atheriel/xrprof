@@ -5,10 +5,10 @@ R_HEADERS ?= $(shell Rscript -e "cat(R.home('include'))")
 CFLAGS += -I$(R_HEADERS)
 
 BIN := rtrace
-BINOBJ := rtrace.o
-OBJ := cursor.o \
-  locate.o \
-  memory.o
+BINOBJ := src/rtrace.o
+OBJ := src/cursor.o \
+  src/locate.o \
+  src/memory.o
 SHLIB := librtrace.so
 
 all: $(BIN)
@@ -24,16 +24,16 @@ shlib: $(SHLIB)
 $(SHLIB): $(OBJ)
 	$(CC) $(LDFLAGS) -shared -o $@ $^
 
-cursor.o: cursor.c cursor.h rdefs.h locate.h memory.h
+src/cursor.o: src/cursor.c src/cursor.h src/rdefs.h src/locate.h src/memory.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-locate.o: locate.c locate.h
+src/locate.o: src/locate.c src/locate.h src/memory.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-memory.o: memory.c memory.h rdefs.h
+src/memory.o: src/memory.c src/memory.h src/rdefs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-rtrace.o: rtrace.c cursor.h
+src/rtrace.o: src/rtrace.c src/cursor.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 TEST_PROFILES := tests/sleep.out
@@ -65,8 +65,10 @@ DISTDIR = $(PACKAGE)-$(VERSION)
 
 dist:
 	$(INSTALL) -d $(DISTDIR)
-	$(RM) $(DISTDIR)/*
-	cp *.c *.h Makefile README.md $(DISTDIR)/
+	$(RM) -r $(DISTDIR)/*
+	$(INSTALL) -d $(DISTDIR)/src
+	cp src/*.c src/*.h $(DISTDIR)/src
+	cp Makefile README.md $(DISTDIR)/
 	tar -czf $(DISTDIR).tar.gz $(DISTDIR)
 	$(RM) -r $(DISTDIR)
 	sha256sum $(DISTDIR).tar.gz > $(DISTDIR).tar.gz.sha256

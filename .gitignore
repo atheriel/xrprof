@@ -2,4 +2,4 @@
 rtrace
 .Rhistory
 .Rproj.user
-Rprof.out
+tests/*.out
