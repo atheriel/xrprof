@@ -1,51 +1,76 @@
-# External R Stack Walking Demo
+# rtrace
 
-This repository contains a demo sampling profiler for R programs. It will print
-out the current stack in the standard `Rprof.out` format, which is widely used
-by existing R tools.
+`rtrace` is an external sampling profiler for R on Linux.
 
-```shell
-Rscript myscript.R &
-# sudo is required to attach to the process
-sudo ./rtrace -p <PID> -F 50 | tee Rprof.out
+Many R users will be familiar with using the built-in sampling profiler
+`Rprof()` to generate data on what their code is doing, and there are several
+excellent tools to facilitate understanding these samples (or serve as a
+front-end), including the [**profvis**](https://rstudio.github.io/profvis/)
+package.
+
+However, the reach of `Rprof()` and related tools is limited: the profiler is
+"internal", in the sense that it must be manually switched on to work, either
+during interactive work (for example, to profile an individual function), or
+perhaps by modifying the script to include `Rprof()` calls before running it
+again.
+
+In contrast, `rtrace` can be used to profile code that is *already running*:
+
+```console
+$ Rscript myscript.R &
+# sudo may be required.
+$ rtrace -p <PID> -F 50 > Rprof.out
 ```
 
-How is this different from existing R profiling options, such as `Rprof()` or
-the [**profvis**](https://rstudio.github.io/profvis/) package? While these tools
-are invaluable for understanding R code inside the current R session, this demo
-allows you to extract profiling data from R code *that is already running*. It
-is mainly aimed at understanding what R code running in production is doing when
-you cannot afford to modify that process. In this regard it joins a large list
-of tools for other languages, such as `perf` (the Linux system profiler),
-`jstack` (for Java), `rbspy` (for Ruby), `Pyflame` (for Python), and many
-others.
+External sampling profilers have proven extremely useful for diagnosing and
+fixing performance issues (or other bugs) in production environments. This
+project joins a large list similar tools for other languages, such as `perf`
+(the Linux system profiler), `jstack` (for Java), `rbspy` (for Ruby), `Pyflame`
+(for Python), `VSPerfCmd` for C#/.NET, and many others.
+
+## Building
+
+A simple `Makefile` is provided. Build the binary with
+
+```console
+$ make
+```
+
+This will attempt to find the R header files automatically. If this fails, you
+can override them:
+
+```console
+$ make R_HEADERS=~/src/R-3.5.2/include
+```
+
+To install the profiler to your system, use
+
+```console
+$ sudo make install
+```
+
+This will install the binary to `/usr/local/bin` and use `setcap` to mark it for
+use without `sudo`. The `install` target supports `prefix` and `DESTDIR`.
+
+## Usage
+
+The profiler has a simple interface:
+
+    Usage: rtrace [-F <freq>] [-d <duration>] -p <pid>
+
+The `Rprof.out` format is written to standard output and errors or other
+messages are written to standard error.
 
 Along with the sampling profiler itself, there is also a `stackcollapse-Rprof.R`
-script that converts the `Rprof.out` format to one that can be understood by
-Brendan Gregg's [FlameGraph](http://www.brendangregg.com/flamegraphs.html) tool.
-You can use this to produce graphs like the one below:
+script in `tools/` that converts the `Rprof.out` format to one that can be
+understood by Brendan Gregg's [FlameGraph](http://www.brendangregg.com/flamegraphs.html)
+tool. You can use this to produce graphs like the one below:
 
 ```shell
 $ stackcollapse-Rprof.R Rprof.out | flamegraph.pl > Rprof.svg
 ```
 
 ![Example FlameGraph](example-flamegraph.svg)
-
-The project was inspired by Julia Evan's blog posts on writing
-[`rbspy`](https://rbspy.github.io/) and later by my discovery of Evan Klitzke's
-work (and writing) on [Pyflame](https://github.com/uber/pyflame).
-
-## Installation
-
-You must build from source. Clone (or download) the repository and run
-
-```console
-$ make
-$ sudo make install
-```
-
-This will build the binary and install it to `/usr/local/bin`. The `install`
-target supports `prefix` and `DESTDIR`.
 
 ## Okay, How Does it Work?
 
@@ -61,25 +86,16 @@ executing R code.
 In order to "defeat" address space randomization, the profiler will also load
 `libR` into memory and then locate the offset of the global context structure.
 
-## Usage
+## Credits
 
-Since this is a demo, the interface is subject to change without notice. For
-now, the interface is as follows:
+The project was inspired by Julia Evan's blog posts on writing
+[`rbspy`](https://rbspy.github.io/) and later by my discovery of Evan Klitzke's
+work (and writing) on [Pyflame](https://github.com/uber/pyflame).
 
-    Usage: ./rtrace [-v] [-F <freq>] [-d <duration>] -p <pid>
+## License
 
-## Building
+This project contains portions of the source code of R itself, which is
+copyright the R Core Developers and licensed under the GPLv2.
 
-The project contains a simple `Makefile`; just run `make`. This will attempt to
-find the R header files automatically. If this fails, you can override them:
-
-``` shell
-$ make R_HEADERS=~/src/R-3.5.2/include
-```
-
-## Limitations
-
-This project falls firmly in the "demo" stage. It only works on Linux. At
-present, it does not support sampling from R programs running inside Docker
-containers, although this is planned. Nor does it support reading the C-level
-stack, although again this is planned.
+The remaining code is copyright its authors and also available under the same
+license, GPLv2.
