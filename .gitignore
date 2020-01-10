@@ -1,5 +1,5 @@
 *.o
-rtrace
+xrprof
 .Rhistory
 .Rproj.user
 tests/*.out

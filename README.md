@@ -1,6 +1,6 @@
-# rtrace
+# xrprof
 
-`rtrace` is an external sampling profiler for R on Linux.
+`xrprof` (formerly `rtrace`) is an external sampling profiler for R on Linux.
 
 Many R users will be familiar with using the built-in sampling profiler
 `Rprof()` to generate data on what their code is doing, and there are several
@@ -14,12 +14,12 @@ during interactive work (for example, to profile an individual function), or
 perhaps by modifying the script to include `Rprof()` calls before running it
 again.
 
-In contrast, `rtrace` can be used to profile code that is *already running*:
+In contrast, `xrprof` can be used to profile code that is *already running*:
 
 ```console
 $ Rscript myscript.R &
 # sudo may be required.
-$ rtrace -p <PID> -F 50 > Rprof.out
+$ xrprof -p <PID> -F 50 > Rprof.out
 ```
 
 External sampling profilers have proven extremely useful for diagnosing and
@@ -56,7 +56,7 @@ use without `sudo`. The `install` target supports `prefix` and `DESTDIR`.
 
 The profiler has a simple interface:
 
-    Usage: rtrace [-F <freq>] [-d <duration>] -p <pid>
+    Usage: xrprof [-F <freq>] [-d <duration>] -p <pid>
 
 The `Rprof.out` format is written to standard output and errors or other
 messages are written to standard error.

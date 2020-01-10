@@ -1,5 +1,5 @@
-#ifndef RTRACE_RDEFS_H
-#define RTRACE_RDEFS_H
+#ifndef XRPROF_RDEFS_H
+#define XRPROF_RDEFS_H
 
 #define USE_RINTERNALS
 #include <Rinternals.h>
@@ -77,4 +77,4 @@ enum {
       CTXT_UNWIND   = 128
 };
 
-#endif /* RTRACE_RDEFS_H */
+#endif /* XRPROF_RDEFS_H */

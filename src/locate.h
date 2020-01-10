@@ -1,5 +1,5 @@
-#ifndef RTRACE_LOCATE_H
-#define RTRACE_LOCATE_H
+#ifndef XRPROF_LOCATE_H
+#define XRPROF_LOCATE_H
 
 #include <stdint.h> /* for uintptr_t */
 #include <unistd.h> /* for pid_t */
@@ -14,4 +14,4 @@ typedef struct libR_globals_s {
 
 int locate_libR_globals(pid_t pid, libR_globals *globals);
 
-#endif /* RTRACE_LOCATE_H */
+#endif /* XRPROF_LOCATE_H */

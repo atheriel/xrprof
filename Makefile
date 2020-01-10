@@ -4,12 +4,12 @@ LIBS := -ldl
 R_HEADERS ?= $(shell Rscript -e "cat(R.home('include'))")
 CFLAGS += -I$(R_HEADERS)
 
-BIN := rtrace
-BINOBJ := src/rtrace.o
+BIN := xrprof
+BINOBJ := src/xrprof.o
 OBJ := src/cursor.o \
   src/locate.o \
   src/memory.o
-SHLIB := librtrace.so
+SHLIB := libxrprof.so
 
 all: $(BIN)
 
@@ -33,7 +33,7 @@ src/locate.o: src/locate.c src/locate.h src/memory.h
 src/memory.o: src/memory.c src/memory.h src/rdefs.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-src/rtrace.o: src/rtrace.c src/cursor.h
+src/xrprof.o: src/xrprof.c src/cursor.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 TEST_PROFILES := tests/sleep.out

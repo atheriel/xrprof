@@ -5,7 +5,7 @@
 #include "locate.h"
 #include "memory.h"
 
-struct rstack_cursor {
+struct xrprof_cursor {
   void *rcxt_ptr;
   RCNTXT *cptr;
   libR_globals globals;
@@ -13,12 +13,12 @@ struct rstack_cursor {
   int depth;
 };
 
-struct rstack_cursor *rstack_create(pid_t pid) {
+struct xrprof_cursor *xrprof_create(pid_t pid) {
   /* Find the symbols and addresses we need. */
   libR_globals globals;
   if (locate_libR_globals(pid, &globals) < 0) return NULL;
 
-  struct rstack_cursor *out = malloc(sizeof(struct rstack_cursor));
+  struct xrprof_cursor *out = malloc(sizeof(struct xrprof_cursor));
   out->rcxt_ptr = NULL;
   out->cptr = NULL;
   out->pid = pid;
@@ -28,7 +28,7 @@ struct rstack_cursor *rstack_create(pid_t pid) {
   return out;
 }
 
-void rstack_destroy(struct rstack_cursor *cursor) {
+void xrprof_destroy(struct xrprof_cursor *cursor) {
   if (!cursor) {
     return;
   }
@@ -41,7 +41,7 @@ void rstack_destroy(struct rstack_cursor *cursor) {
   return free(cursor);
 }
 
-int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
+int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
   SEXP call = NULL, fun = NULL;
   char *name = NULL;
   size_t written;
@@ -125,7 +125,7 @@ int rstack_get_fun_name(struct rstack_cursor *cursor, char *buff, size_t len) {
   return 1;
 }
 
-int rstack_init(struct rstack_cursor *cursor) {
+int xrprof_init(struct xrprof_cursor *cursor) {
   uintptr_t context_ptr;
   size_t bytes = copy_address(cursor->pid, (void *)cursor->globals->context_addr,
                               &context_ptr, sizeof(uintptr_t));
@@ -151,7 +151,7 @@ int rstack_init(struct rstack_cursor *cursor) {
   return 0;
 }
 
-int rstack_step(struct rstack_cursor *cursor) {
+int xrprof_step(struct xrprof_cursor *cursor) {
   if (!cursor || !cursor->cptr) {
     return -1;
   }

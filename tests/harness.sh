@@ -18,7 +18,7 @@ if [ -z "$RSCRIPT" ]; then
 fi
 
 if [ -z "$BIN" ]; then
-    BIN="./rtrace"
+    BIN="./xrprof"
 fi
 
 set -e

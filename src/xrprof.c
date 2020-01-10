@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  struct rstack_cursor *cursor = rstack_create(pid);
+  struct xrprof_cursor *cursor = xrprof_create(pid);
   if (!cursor) {
     fprintf(stderr, "fatal: Failed to initialize R stack cursor.\n");
     code++;
@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
 
     int ret;
     char rsym[256];
-    if ((ret = rstack_init(cursor)) < 0) {
+    if ((ret = xrprof_init(cursor)) < 0) {
       code++;
       fprintf(stderr, "fatal: Failed to initialize R stack cursor: %d.\n", ret);
       goto done;
@@ -163,7 +163,7 @@ int main(int argc, char **argv) {
 
     do {
       rsym[0] = '\0';
-      if ((ret = rstack_get_fun_name(cursor, rsym, sizeof(rsym))) < 0) {
+      if ((ret = xrprof_get_fun_name(cursor, rsym, sizeof(rsym))) < 0) {
         code++;
         goto done;
       } else if (ret == 0) {
@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
       } else {
         printf("\"%s\" ", rsym);
       }
-    } while ((ret = rstack_step(cursor)) > 0);
+    } while ((ret = xrprof_step(cursor)) > 0);
 
     if (ret < 0) {
       code++;
@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
 
  done:
   ptrace(PTRACE_DETACH, pid, NULL, NULL);
-  rstack_destroy(cursor);
+  xrprof_destroy(cursor);
 
   return code;
 }
