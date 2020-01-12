@@ -1,0 +1,68 @@
+.TH XRPROF 1 2020-01-11
+.SH NAME
+xrprof \- profile R programs
+.SH SYNOPSIS
+.B xrprof
+.RB [ -h ]
+.RB [ -F
+.IR FREQ ]
+.RB [ -d
+.IR DURATION ]
+.B -p
+.I PID
+.SH DESCRIPTION
+A sampling profiler for
+.BR R (1)
+programs.
+.B xrprof
+writes to standard output the
+.I Rprof.out
+format widely used by existing R-based tools.
+.SH OPTIONS
+Malformed arguments will fall back on the defaults, if possible.
+.TP
+.B \-h
+Print usage and exit.
+.TP
+.BR \-p " " \fIPID\fR
+Specify the pid of the target R program.
+.TP
+.BR \-F " " \fIFREQ\fR
+Set the sampling frequency, in Hertz. The default is 1 Hz, i.e. one
+sample per second, and the maximum is 1000 Hz (though far fewer samples
+are usually required).
+.TP
+.BR \-d " " \fIDURATION\fR
+Set the duration for
+.B xrprof
+to take samples before exiting (provided the target program runs that
+long). The default is to last up to one hour.
+.SH EXAMPLES
+Sample from an existing R program for 5 seconds at a useful frequency:
+.PP
+.EX
+    $ xrprof -F 50 -d 5 -p `pidof R`
+.EE
+.PP
+Start a new R program in the background and then start the profiler,
+writing samples to the file
+.I Rprof.out
+in the current directory:
+.PP
+.EX
+    $ Rscript myprogram.R &
+    $ xrprof -F 50 -p $! > Rprof.out
+.EE
+.SH EXIT STATUS
+.TP
+.B 0
+Successful program execution.
+.TP
+.B 1
+A fatal error ocurred during sampling.
+.SH AUTHORS
+.B xrprof
+was written by Aaron Jacobs.
+.SH SEE ALSO
+.BR R (1),
+.BR Rscript (1)

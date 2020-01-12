@@ -53,6 +53,8 @@ libdir = $(prefix)/lib
 install:
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -T -m 0755 $(BIN) $(DESTDIR)$(bindir)/$(BIN)
+	$(INSTALL) -d $(DESTDIR)$(datadir)/man/man1
+	$(INSTALL) -T -m 0755 docs/$(BIN).1 $(DESTDIR)$(datadir)/man/man1/$(BIN).1
 	setcap cap_sys_ptrace=eip $(DESTDIR)$(bindir)/$(BIN) || exit 0
 
 install-shlib:
@@ -68,6 +70,8 @@ dist:
 	$(RM) -r $(DISTDIR)/*
 	$(INSTALL) -d $(DISTDIR)/src
 	cp src/*.c src/*.h $(DISTDIR)/src
+	$(INSTALL) -d $(DISTDIR)/docs
+	cp docs/* $(DISTDIR)/docs
 	cp Makefile README.md $(DISTDIR)/
 	tar -czf $(DISTDIR).tar.gz $(DISTDIR)
 	$(RM) -r $(DISTDIR)
