@@ -3,8 +3,6 @@
 #include <stdio.h>      /* for fprintf */
 #include <stdlib.h>     /* for malloc */
 #include <string.h>     /* for strstr, strndup */
-#include <sys/ptrace.h> /* for ptrace */
-#include <sys/wait.h>   /* for waitpid */
 
 #include "locate.h"
 #include "memory.h"
@@ -123,16 +121,6 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
   /* For many global symbols, the values will never change, so we can just keep
      track of them directly. */
 
-  if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
-    perror("error: Failed to interrupt remote process");
-    return -1;
-  }
-  int wstatus;
-  if (waitpid(pid, &wstatus, 0) < 0) {
-    perror("error: Failed to obtain remote process status information");
-    return -1;
-  }
-
   libR_globals ret = (libR_globals) malloc(sizeof(struct libR_globals_s));
   ret->context_addr = remote + context_offset;
   ret->doublecolon = sym_value(dlhandle, pid, local, remote, "R_DoubleColonSymbol");
@@ -149,12 +137,6 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
   /* We can close the library and continue the process now. */
 
   dlclose(dlhandle);
-  if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
-    perror("error: Failed to continue remote process");
-    free(ret);
-    ret = NULL;
-    return -1;
-  }
 
   if (!ret) {
     return -1;
