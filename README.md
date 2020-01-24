@@ -1,5 +1,11 @@
 # xrprof
 
+<!-- badges: start -->
+
+[![travis-ci build
+status](https://travis-ci.org/atheriel/xrprof.svg?branch=master)](https://travis-ci.org/atheriel/xrprof)
+<!-- badges: end -->
+
 `xrprof` (formerly `rtrace`) is an external sampling profiler for R on Linux.
 
 Many R users will be familiar with using the built-in sampling profiler
