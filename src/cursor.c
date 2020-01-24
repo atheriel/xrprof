@@ -1,4 +1,5 @@
 #include <stdlib.h>     /* for malloc, free */
+#include <stdio.h>      /* for fprintf */
 
 #include "cursor.h"
 #include "rdefs.h"

@@ -36,13 +36,6 @@ A simple `Makefile` is provided. Build the binary with
 $ make
 ```
 
-This will attempt to find the R header files automatically. If this fails, you
-can override them:
-
-```console
-$ make R_HEADERS=~/src/R-3.5.2/include
-```
-
 To install the profiler to your system, use
 
 ```console
