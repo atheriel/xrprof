@@ -15,6 +15,7 @@ all: $(BIN)
 
 clean:
 	$(RM) $(BIN) $(BINOBJ) $(OBJ) $(SHLIB)
+	cd tests && $(MAKE) clean
 
 $(BIN): $(OBJ) $(BINOBJ)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
@@ -36,11 +37,8 @@ src/memory.o: src/memory.c src/memory.h src/rdefs.h
 src/xrprof.o: src/xrprof.c src/cursor.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-TEST_PROFILES := tests/sleep.out
-test: $(TEST_PROFILES)
-
-tests/%.out: tests/%.R
-	sudo tests/harness.sh $<
+test: $(BIN)
+	cd tests && $(MAKE) "BIN=../$(BIN)"
 
 # Mostly compatible with https://www.gnu.org/prep/standards/html_node/Makefile-Conventions.html
 INSTALL = install
