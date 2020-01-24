@@ -1,15 +1,15 @@
-CFLAGS += -O2 -Wall -fPIC -g
-LIBS := -ldl
+CFLAGS = -O2 -Wall -fPIC -g
+LIBS = -ldl
 
 R_HEADERS ?= $(shell Rscript -e "cat(R.home('include'))")
 CFLAGS += -I$(R_HEADERS)
 
-BIN := xrprof
-BINOBJ := src/xrprof.o
-OBJ := src/cursor.o \
+BIN = xrprof
+BINOBJ = src/xrprof.o
+OBJ = src/cursor.o \
   src/locate.o \
   src/memory.o
-SHLIB := libxrprof.so
+SHLIB = libxrprof.so
 
 all: $(BIN)
 
