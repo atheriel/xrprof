@@ -1,8 +1,12 @@
-#include <dlfcn.h>      /* for dlopen, dlsym */
+#include <fcntl.h>      /* for open */
 #include <stddef.h>     /* for ptrdiff_t */
 #include <stdio.h>      /* for fprintf */
 #include <stdlib.h>     /* for malloc */
 #include <string.h>     /* for strstr, strndup */
+
+#include <elf.h>
+#include <libelf.h>
+#include <gelf.h>
 
 #include "locate.h"
 #include "memory.h"
@@ -53,38 +57,16 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   return 0;
 }
 
-static ptrdiff_t sym_offset(void * dlhandle, uintptr_t start, const char *sym) {
-  void* addr = dlsym(dlhandle, sym);
-  if (!addr) {
-    fprintf(stderr, "error: Failed to locate symbol %s: %s.\n", sym, dlerror());
-    return 0; // This would never make sense, anyway.
-  }
-
-  return (ptrdiff_t) (addr - start);
-}
-
-static uintptr_t sym_value(void * dlhandle, pid_t pid, uintptr_t local, uintptr_t remote, const char *sym) {
-  ptrdiff_t offset = sym_offset(dlhandle, local, sym);
-  if (!offset) {
-    /* sym_offset() will print its own error message. */
-    return 0;
-  }
-  uintptr_t value;
-  size_t bytes = copy_address(pid, (void *)remote + offset, &value,
-                              sizeof(uintptr_t));
-  /* fprintf(stderr, "sym=%s; offset=%p; addr=%p; value=%p\n", */
-  /*         sym, (void *) offset, (void *) remote + offset, (void *) value); */
-  if (bytes < sizeof(uintptr_t)) {
-    /* copy_address() will have already printed an error. */
-    return 0;
-  }
-
-  return value;
-}
 
 int locate_libR_globals(pid_t pid, libR_globals *globals) {
   /* Open the same libR.so in the tracer so we can determine the symbol offsets
      to read memory at in the tracee. */
+
+  if (elf_version(EV_CURRENT) == EV_NONE) {
+    fprintf(stderr, "error: Can't set the ELF version. %s\n",
+            elf_errmsg(elf_errno()));
+    return -1;
+  }
 
   char *path = NULL;
   uintptr_t remote;
@@ -97,51 +79,97 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
   /* if (verbose) fprintf(stderr, "Found %s at %p in pid %d.\n", path, */
   /*                      (void *) addr, pid); */
 
-  void *dlhandle = dlopen(path, RTLD_LAZY);
-  if (!dlhandle) {
-    fprintf(stderr, "error: Failed to dlopen() libR.so: %s\n", dlerror());
-    return -1;
-  }
-  free(path);
-
-  uintptr_t local;
-  if (find_libR(getpid(), &path, &local) < 0) {
-    fprintf(stderr, "error: Failed to load libR.so into local memory.\n");
+  int fd = open(path, O_RDONLY);
+  if (fd < 0) {
+    char msg[64];
+    snprintf(msg, 64, "error: Cannot open %s", path);
+    perror(msg);
+    free(path);
     return -1;
   }
 
-  /* if (verbose) fprintf(stderr, "Found %s at %p locally.\n", path, */
-  /*                      (void *) local_addr); */
-  free(path);
-
-  /* The R_GlobalContext value will change, so we only want the address to read
-     the value from. */
-
-  ptrdiff_t context_offset = sym_offset(dlhandle, local, "R_GlobalContext");
-  if (!context_offset) {
-    /* sym_offset() will print its own error message. */
+  Elf *elf = elf_begin(fd, ELF_C_READ_MMAP, NULL);
+  if (elf == NULL) {
+    fprintf(stderr, "error: %s is not a valid ELF file. %s\n", path,
+            elf_errmsg(elf_errno()));
+    close(fd);
+    free(path);
     return -1;
   }
 
-  /* For many global symbols, the values will never change, so we can just keep
-     track of them directly. */
+  /* TODO: 32-bit support? */
+  Elf64_Ehdr *ehdr = elf64_getehdr(elf);
+  if (!ehdr) {
+    fprintf(stderr, "error: %s is not a valid 64-bit ELF file. %s\n", path,
+            elf_errmsg(elf_errno()));
+    elf_end(elf);
+    close(fd);
+    free(path);
+    return -1;
+  }
+
+  Elf64_Shdr shdr;
+  Elf_Scn *scn = NULL;
+  while ((scn = elf_nextscn(elf, scn)) != NULL) {
+    gelf_getshdr(scn, &shdr);
+    if (shdr.sh_type == SHT_DYNSYM) {
+      break;
+    }
+  }
+  if (!scn) {
+    fprintf(stderr, "error: Can't find the symbol table in %s.\n", path);
+    elf_end(elf);
+    close(fd);
+    free(path);
+    return -1;
+  }
 
   libR_globals ret = (libR_globals) malloc(sizeof(struct libR_globals_s));
-  ret->context_addr = remote + context_offset;
-  ret->doublecolon = sym_value(dlhandle, pid, local, remote, "R_DoubleColonSymbol");
-  ret->triplecolon = sym_value(dlhandle, pid, local, remote, "R_TripleColonSymbol");
-  ret->dollar = sym_value(dlhandle, pid, local, remote, "R_DollarSymbol");
-  ret->bracket = sym_value(dlhandle, pid, local, remote, "R_BracketSymbol");
+  ret->context_addr = 0;
+
+  Elf_Data *data = elf_getdata(scn, NULL);
+  Elf64_Sym sym;
+  char *symbol;
+  uintptr_t value;
+  size_t bytes;
+  for (int i = 0; i < shdr.sh_size / shdr.sh_entsize; i++) {
+    gelf_getsym(data, i, &sym);
+    symbol = elf_strptr(elf, shdr.sh_link, sym.st_name);
+
+    if (strncmp("R_GlobalContext", symbol, 15) == 0) {
+      /* The R_GlobalContext value will change, so we only want the address to
+         read the value from. */
+      ret->context_addr = remote + sym.st_value;
+    } else if (strncmp("R_DoubleColonSymbol", symbol, 19) == 0) {
+      /* copy_address() will print its own errors. */
+      bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
+                           sizeof(uintptr_t));
+      ret->doublecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+    } else if (strncmp("R_TripleColonSymbol", symbol, 19) == 0) {
+      bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
+                           sizeof(uintptr_t));
+      ret->triplecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+    } else if (strncmp("R_DollarSymbol", symbol, 14) == 0) {
+      bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
+                           sizeof(uintptr_t));
+      ret->dollar = bytes < sizeof(uintptr_t) ? 0 : value;
+    } else if (strncmp("R_BracketSymbol", symbol, 15) == 0) {
+      bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
+                           sizeof(uintptr_t));
+      ret->bracket = bytes < sizeof(uintptr_t) ? 0 : value;
+    }
+  }
+
+  elf_end(elf);
+  close(fd);
+  free(path);
+
   if (!ret->doublecolon || !ret->triplecolon || !ret->dollar ||
-      !ret->bracket) {
+      !ret->bracket || !ret->context_addr) {
     fprintf(stderr, "error: Failed to locate required R global variables.\n");
     free(ret);
     ret = NULL;
   }
-
-  /* We can close the library and continue the process now. */
-
-  dlclose(dlhandle);
 
   if (!ret) {
     return -1;

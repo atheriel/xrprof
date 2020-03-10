@@ -1,5 +1,5 @@
 CFLAGS = -O2 -Wall -fPIC -g
-LIBS = -ldl
+LIBS = -lelf
 
 BIN = xrprof
 BINOBJ = src/xrprof.o
