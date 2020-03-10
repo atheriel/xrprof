@@ -6,6 +6,8 @@
 
 * Support for profiling R when built without `libR.so`. (#7)
 
+* Fixes a memory leak.
+
 # xrprof 0.1
 
 * Initial public release. `xrprof` is an external sampling profiler for R on

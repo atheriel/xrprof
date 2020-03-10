@@ -104,6 +104,8 @@ int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
       free(cdr);
       free(lhs);
       free(rhs);
+      free(lname);
+      free(rname);
     } else {
       fprintf(stderr, "TYPEOF(fun): %d\n", TYPEOF(fun));
       written = snprintf(buff, len, "<Anonymous>");
