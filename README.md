@@ -82,8 +82,13 @@ The R-specific aspect of this is to locate and decode the `R_GlobalContext`
 structure inside of the R interpreter that stores information on the currently
 executing R code.
 
-In order to "defeat" address space randomization, the profiler will also load
-`libR` into memory and then locate the offset of the global context structure.
+In order to defeat address space randomization, `xrprof` will search through the
+ELF files loaded into memory (at `/proc/<pid>/maps`) for the symbols required,
+either in the executable itself or in `libR.so` (if it appears R has been
+compiled to use it).
+
+`xrprof` is mount-namespace-aware, so it supports profiling R processes running
+inside Docker containers.
 
 ## Credits
 
