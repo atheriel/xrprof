@@ -27,8 +27,13 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
       /* Extract the address. */
       *addr = (uintptr_t) strtoul(buffer, NULL, 16);
 
-      /* Extract the path, minus the trailing '\n'. */
-      *path = strndup(strstr(buffer, "/"), MAX_LIBR_PATH_LEN);
+      /* Prefix the path with the process's view of the filesystem, which might
+         be affected by a namespace (as in the case of a container). */
+      *path = calloc(MAX_LIBR_PATH_LEN, 1);
+      snprintf(*path, MAX_LIBR_PATH_LEN, "/proc/%d/root%s", pid,
+               strstr(buffer, "/"));
+
+      /* Remove the trailing '\n'. */
       char *linebreak = strstr(*path, "\n");
       if (linebreak) {
         *linebreak = '\0';
