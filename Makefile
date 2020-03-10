@@ -67,7 +67,7 @@ dist:
 	cp src/*.c src/*.h $(DISTDIR)/src
 	$(INSTALL) -d $(DISTDIR)/docs
 	cp docs/* $(DISTDIR)/docs
-	cp Makefile README.md $(DISTDIR)/
+	cp Makefile README.md NEWS.md $(DISTDIR)/
 	tar -czf $(DISTDIR).tar.gz $(DISTDIR)
 	$(RM) -r $(DISTDIR)
 	sha256sum $(DISTDIR).tar.gz > $(DISTDIR).tar.gz.sha256
