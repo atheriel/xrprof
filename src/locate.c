@@ -26,7 +26,12 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   *path = NULL;
 
   char buffer[1024];
+  uintptr_t start = 0;
   while (fgets(buffer, sizeof(buffer), file)) {
+    if (!start) {
+      /* Extract the process's own code address. */
+      start = (uintptr_t) strtoul(buffer, NULL, 16);
+    }
     if (strstr(buffer, "libR.so")) {
       /* Extract the address. */
       *addr = (uintptr_t) strtoul(buffer, NULL, 16);
@@ -52,6 +57,7 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
   /* Either (1) this R program does not use libR.so, or (2) it's not actually an
      R program. */
   if (!*path) {
+    *addr = start;
     return -1;
   }
   return 0;
@@ -69,11 +75,11 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
   }
 
   char *path = NULL;
-  uintptr_t remote;
+  uintptr_t remote = 0;
   if (find_libR(pid, &path, &remote) < 0) {
-    fprintf(stderr, "error: Could not locate libR.so in process %d's memory. Are you sure it is an R program?\n",
-            pid);
-    return -1;
+    /* Try finding the symbols in the executable directly. */
+    path = calloc(MAX_LIBR_PATH_LEN, 1);
+    snprintf(path, MAX_LIBR_PATH_LEN, "/proc/%d/exe", pid);
   }
 
   /* if (verbose) fprintf(stderr, "Found %s at %p in pid %d.\n", path, */
@@ -162,14 +168,15 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
 
   elf_end(elf);
   close(fd);
-  free(path);
 
   if (!ret->doublecolon || !ret->triplecolon || !ret->dollar ||
       !ret->bracket || !ret->context_addr) {
-    fprintf(stderr, "error: Failed to locate required R global variables.\n");
+    fprintf(stderr, "error: Failed to locate required R global variables in process %d's memory. Are you sure it is an R program?\n",
+            pid);
     free(ret);
     ret = NULL;
   }
+  free(path);
 
   if (!ret) {
     return -1;
