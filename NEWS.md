@@ -1,4 +1,4 @@
-# xrprof (development version)
+# xrprof 0.2.0
 
 * `libelf` is now required.
 
