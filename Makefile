@@ -1,5 +1,5 @@
 CFLAGS = -O2 -Wall -fPIC -g
-LIBS = -lelf
+LIBS = -lelf -lunwind-ptrace -lunwind-generic
 
 BIN = xrprof
 BINOBJ = src/xrprof.o

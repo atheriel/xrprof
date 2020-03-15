@@ -4,6 +4,7 @@ xrprof \- profile R programs
 .SH SYNOPSIS
 .B xrprof
 .RB [ -h ]
+.RB [ -m ]
 .RB [ -F
 .IR FREQ ]
 .RB [ -d
@@ -37,6 +38,10 @@ Set the duration for
 .B xrprof
 to take samples before exiting (provided the target program runs that
 long). The default is to last up to one hour.
+.TP
+.B \-m
+Run in \*(lqmixed mode\*(rq, where samples are drawn from both the
+R-level and native C/C++ stacks and collated together.
 .SH EXAMPLES
 Sample from an existing R program for 5 seconds at a useful frequency:
 .PP
