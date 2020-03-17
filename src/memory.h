@@ -5,8 +5,8 @@
 #include "rdefs.h"  /* for RCNTXT, SEXP */
 
 size_t copy_address(pid_t pid, void *addr, void *data, size_t len);
-void copy_context(pid_t pid, void *addr, RCNTXT **data);
-void copy_sexp(pid_t pid, void *addr, SEXP *data);
-void copy_char(pid_t pid, void *addr, char **data);
+int copy_context(pid_t pid, void *addr, RCNTXT *data);
+int copy_sexp(pid_t pid, void *addr, SEXP data);
+int copy_char(pid_t pid, void *addr, char *data, size_t max_len);
 
 #endif /* XRPROF_MEMORY_H */

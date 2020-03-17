@@ -21,7 +21,7 @@ struct xrprof_cursor *xrprof_create(pid_t pid) {
 
   struct xrprof_cursor *out = malloc(sizeof(struct xrprof_cursor));
   out->rcxt_ptr = NULL;
-  out->cptr = NULL;
+  out->cptr = malloc(sizeof(RCNTXT));
   out->pid = pid;
   out->globals = globals;
   out->depth = 0;
@@ -42,9 +42,11 @@ void xrprof_destroy(struct xrprof_cursor *cursor) {
   return free(cursor);
 }
 
+#define MAX_SYM_LEN 128
+
 int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
-  SEXP call = NULL, fun = NULL;
-  char *name = NULL;
+  SEXPREC call, fun, cdr, lhs, rhs;
+  char lname[MAX_SYM_LEN], rname[MAX_SYM_LEN];
   size_t written;
 
   if (!cursor || !cursor->cptr) {
@@ -56,58 +58,50 @@ int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
     return 0;
   }
 
-  copy_sexp(cursor->pid, (void *) cursor->cptr->call, &call);
-  if (!call) {
+  int ret = copy_sexp(cursor->pid, (void *) cursor->cptr->call, &call);
+  if (ret < 0) {
     fprintf(stderr, "error: Could not read SEXP for current call.\n");
-    return -1;
+    return ret;
   }
 
   /* Adapted from R's eval.c code for Rprof. */
 
   if (cursor->cptr->callflag & (CTXT_FUNCTION | CTXT_BUILTIN | CTXT_CCODE) &&
-      TYPEOF(call) == LANGSXP) {
-    copy_sexp(cursor->pid, (void *) CAR(call), &fun);
-    if (!fun) {
+      TYPEOF(&call) == LANGSXP) {
+    ret = copy_sexp(cursor->pid, (void *) CAR(&call), &fun);
+    if (ret < 0) {
       fprintf(stderr, "error: Unexpected R structure: current call lang item has no CAR.\n");
-      return -1;
+      return ret;
     }
-    if (TYPEOF(fun) == SYMSXP) {
-      copy_char(cursor->pid, (void *) PRINTNAME(fun), &name);
-      written = snprintf(buff, len, "%s", name);
-    } else if (TYPEOF(fun) == LANGSXP) {
-      SEXP cdr = NULL, lhs = NULL, rhs = NULL;
-      char *lname = NULL, *rname = NULL;
-      copy_sexp(cursor->pid, (void *) CDR(fun), &cdr);
-      copy_sexp(cursor->pid, (void *) CAR(cdr), &lhs);
-      copy_sexp(cursor->pid, (void *) CDR(cdr), &cdr);
-      copy_sexp(cursor->pid, (void *) CAR(cdr), &rhs);
-      if ((uintptr_t) CAR(fun) == cursor->globals->doublecolon &&
-          TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
-        copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
-        copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
+    if (TYPEOF(&fun) == SYMSXP) {
+      copy_char(cursor->pid, (void *) PRINTNAME(&fun), rname, MAX_SYM_LEN);
+      written = snprintf(buff, len, "%s", rname);
+    } else if (TYPEOF(&fun) == LANGSXP) {
+      copy_sexp(cursor->pid, (void *) CDR(&fun), &cdr);
+      copy_sexp(cursor->pid, (void *) CAR(&cdr), &lhs);
+      copy_sexp(cursor->pid, (void *) CDR(&cdr), &cdr);
+      copy_sexp(cursor->pid, (void *) CAR(&cdr), &rhs);
+      if ((uintptr_t) CAR(&fun) == cursor->globals->doublecolon &&
+          TYPEOF(&lhs) == SYMSXP && TYPEOF(&rhs) == SYMSXP) {
+        copy_char(cursor->pid, (void *) PRINTNAME(&lhs), lname, MAX_SYM_LEN);
+        copy_char(cursor->pid, (void *) PRINTNAME(&rhs), rname, MAX_SYM_LEN);
         written = snprintf(buff, len, "%s::%s", lname, rname);
-      } else if ((uintptr_t) CAR(fun) == cursor->globals->triplecolon &&
-                 TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
-        copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
-        copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
+      } else if ((uintptr_t) CAR(&fun) == cursor->globals->triplecolon &&
+                 TYPEOF(&lhs) == SYMSXP && TYPEOF(&rhs) == SYMSXP) {
+        copy_char(cursor->pid, (void *) PRINTNAME(&lhs), lname, MAX_SYM_LEN);
+        copy_char(cursor->pid, (void *) PRINTNAME(&rhs), rname, MAX_SYM_LEN);
         written = snprintf(buff, len, "%s:::%s", lname, rname);
-      } else if ((uintptr_t) CAR(fun) == cursor->globals->dollar &&
-                 TYPEOF(lhs) == SYMSXP && TYPEOF(rhs) == SYMSXP) {
-        copy_char(cursor->pid, (void *) PRINTNAME(lhs), &lname);
-        copy_char(cursor->pid, (void *) PRINTNAME(rhs), &rname);
+      } else if ((uintptr_t) CAR(&fun) == cursor->globals->dollar &&
+                 TYPEOF(&lhs) == SYMSXP && TYPEOF(&rhs) == SYMSXP) {
+        copy_char(cursor->pid, (void *) PRINTNAME(&lhs), lname, MAX_SYM_LEN);
+        copy_char(cursor->pid, (void *) PRINTNAME(&rhs), rname, MAX_SYM_LEN);
         written = snprintf(buff, len, "%s$%s", lname, rname);
       } else {
         /* fprintf(stderr, "CAR(fun)=%p; lhs=%p; rhs=%p\n", */
         /*         (void *) CAR(fun), (void *) lhs, (void *) rhs); */
         written = snprintf(buff, len, "<Unimplemented>");
       }
-      free(cdr);
-      free(lhs);
-      free(rhs);
-      free(lname);
-      free(rname);
     } else {
-      fprintf(stderr, "TYPEOF(fun): %d\n", TYPEOF(fun));
       written = snprintf(buff, len, "<Anonymous>");
     }
   } else {
@@ -115,10 +109,6 @@ int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
     /*         cptr->callflag); */
     written = snprintf(buff, len, "<Unknown>");
   }
-
-  free(call);
-  free(fun);
-  free(name);
 
   /* Function name may be too long for the buffer. */
   if (written >= len) {
@@ -140,15 +130,9 @@ int xrprof_init(struct xrprof_cursor *cursor) {
   cursor->rcxt_ptr = (void *) context_ptr;
   cursor->depth = 0;
 
-  /* Clear any existing RCXT data. */
-  if (cursor->cptr) {
-    free(cursor->cptr);
-    cursor->cptr = NULL;
-  }
-
-  copy_context(cursor->pid, (void *) context_ptr, &cursor->cptr);
-  if (!cursor->cptr) {
-    return -1;
+  int ret = copy_context(cursor->pid, (void *) context_ptr, cursor->cptr);
+  if (ret < 0) {
+    return ret;
   }
 
   return 0;
@@ -166,10 +150,8 @@ int xrprof_step(struct xrprof_cursor *cursor) {
 
   cursor->rcxt_ptr = cursor->cptr->nextcontext;
   cursor->depth++;
-  free(cursor->cptr);
-  cursor->cptr = NULL;
 
-  copy_context(cursor->pid, cursor->rcxt_ptr, &cursor->cptr);
+  copy_context(cursor->pid, cursor->rcxt_ptr, cursor->cptr);
   if (!cursor->cptr) {
     return -2;
   }

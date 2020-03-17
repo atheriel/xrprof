@@ -1,7 +1,6 @@
 #ifdef __linux
 #define _GNU_SOURCE  /* for process_vm_readv */
 #include <stdio.h>   /* for fprintf, perror, stderr */
-#include <stdlib.h>  /* for realloc */
 #include <sys/uio.h> /* for iovec, process_vm_readv */
 
 size_t copy_address(pid_t pid, void *addr, void *data, size_t len) {
@@ -27,48 +26,39 @@ size_t copy_address(pid_t pid, void *addr, void *data, size_t len) {
 
 #include "rdefs.h"
 
-void copy_context(pid_t pid, void *addr, RCNTXT **data) {
-  if (!addr) { /* Makes loops easier. */
-    goto fail;
+int copy_context(pid_t pid, void *addr, RCNTXT *data) {
+  if (!addr) {
+    return -1;
   }
 
   size_t len = sizeof(RCNTXT);
-  *data = (RCNTXT *) realloc(*data, len);
-  size_t bytes = copy_address(pid, addr, *data, len);
+  size_t bytes = copy_address(pid, addr, data, len);
   if (bytes < len) {
-    goto fail;
+    return -2;
   }
-  return;
 
- fail:
-  free(*data);
-  data = NULL;
-  return;
+  return 0;
 }
 
-void copy_sexp(pid_t pid, void *addr, SEXP *data) {
-  if (!addr) { /* Makes loops easier. */
-    goto fail;
+int copy_sexp(pid_t pid, void *addr, SEXP data) {
+  if (!addr) {
+    return -1;
   }
 
   size_t len = sizeof(SEXPREC);
-  *data = (SEXP) realloc(*data, len);
-  size_t bytes = copy_address(pid, addr, *data, len);
+  size_t bytes = copy_address(pid, addr, data, len);
   if (bytes < len) {
-    goto fail;
+    return -2;
   }
-  return;
 
- fail:
-  free(*data);
-  data = NULL;
-  return;
+  return 0;
 }
 
-void copy_char(pid_t pid, void *addr, char **data) {
-  if (!addr) { /* Makes loops easier. */
-    goto fail;
+int copy_char(pid_t pid, void *addr, char *data, size_t max_len) {
+  if (!addr) {
+    return -1;
   }
+  SEXPREC_ALIGN vec;
   size_t len, bytes;
   void *str_addr = STDVEC_DATAPTR(addr);
 
@@ -77,26 +67,18 @@ void copy_char(pid_t pid, void *addr, char **data) {
      address to read the actual character array. */
 
   len = sizeof(SEXPREC_ALIGN);
-  SEXPREC_ALIGN *vec = (SEXPREC_ALIGN *) malloc(len);
-  bytes = copy_address(pid, addr, vec, len);
+  bytes = copy_address(pid, addr, &vec, len);
   if (bytes < len) {
-    goto fail;
+    return -2;
   }
 
-  len = vec->s.vecsxp.length;
-  free(vec);
+  len = vec.s.vecsxp.length + 1 > max_len ? max_len : vec.s.vecsxp.length + 1;
 
-  *data = realloc(*data, len + 1);
-  (*data)[len] = '\0';
-  bytes = copy_address(pid, str_addr, *data, len);
+  data[len] = '\0';
+  bytes = copy_address(pid, str_addr, data, len);
   if (bytes < len) {
-    goto fail;
+    return -2;
   }
 
-  return;
-
- fail:
-  free(*data);
-  data = NULL;
-  return;
+  return 0;
 }
