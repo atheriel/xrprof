@@ -1,11 +1,11 @@
 #ifndef XRPROF_CURSOR_H
 #define XRPROF_CURSOR_H
 
-#include <unistd.h> /* for pid_t */
+#include "process.h"
 
 struct xrprof_cursor;
 
-struct xrprof_cursor *xrprof_create(pid_t pid);
+struct xrprof_cursor *xrprof_create(phandle pid);
 void xrprof_destroy(struct xrprof_cursor *cursor);
 int xrprof_init(struct xrprof_cursor *cursor);
 

@@ -1,9 +1,23 @@
 #ifdef __linux
 #define _GNU_SOURCE  /* for process_vm_readv */
+#endif
+
 #include <stdio.h>   /* for fprintf, perror, stderr */
+
+#include "memory.h"
+#include "rdefs.h"
+
+#ifdef __linux
 #include <sys/uio.h> /* for iovec, process_vm_readv */
 
-size_t copy_address(pid_t pid, void *addr, void *data, size_t len) {
+/* No-op on Linux. */
+int phandle_init(phandle *out, void *data) {
+  pid_t pid = *((pid_t *) data);
+  *out = pid;
+  return 0;
+}
+
+size_t copy_address(phandle pid, void *addr, void *data, size_t len) {
   struct iovec local[1];
   local[0].iov_base = data;
   local[0].iov_len = len;
@@ -24,9 +38,7 @@ size_t copy_address(pid_t pid, void *addr, void *data, size_t len) {
 #error "No support for non-Linux platforms."
 #endif
 
-#include "rdefs.h"
-
-int copy_context(pid_t pid, void *addr, RCNTXT *data) {
+int copy_context(phandle pid, void *addr, RCNTXT *data) {
   if (!addr) {
     return -1;
   }
@@ -40,7 +52,7 @@ int copy_context(pid_t pid, void *addr, RCNTXT *data) {
   return 0;
 }
 
-int copy_sexp(pid_t pid, void *addr, SEXP data) {
+int copy_sexp(phandle pid, void *addr, SEXP data) {
   if (!addr) {
     return -1;
   }
@@ -54,7 +66,7 @@ int copy_sexp(pid_t pid, void *addr, SEXP data) {
   return 0;
 }
 
-int copy_char(pid_t pid, void *addr, char *data, size_t max_len) {
+int copy_char(phandle pid, void *addr, char *data, size_t max_len) {
   if (!addr) {
     return -1;
   }

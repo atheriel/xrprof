@@ -64,7 +64,7 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
 }
 
 
-int locate_libR_globals(pid_t pid, struct libR_globals *out) {
+int locate_libR_globals(phandle pid, struct libR_globals *out) {
   /* Open the same libR.so in the tracer so we can determine the symbol offsets
      to read memory at in the tracee. */
 

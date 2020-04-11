@@ -10,11 +10,11 @@ struct xrprof_cursor {
   void *rcxt_ptr;
   RCNTXT *cptr;
   struct libR_globals globals;
-  pid_t pid;
+  phandle pid;
   int depth;
 };
 
-struct xrprof_cursor *xrprof_create(pid_t pid) {
+struct xrprof_cursor *xrprof_create(phandle pid) {
   /* Find the symbols and addresses we need. */
   struct libR_globals globals;
   if (locate_libR_globals(pid, &globals) < 0) return NULL;
