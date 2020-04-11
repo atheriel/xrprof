@@ -43,7 +43,7 @@ struct sxpinfo_struct {
   unsigned int pad   : 27;
 #else
   /* This header changed from 32 bits to 64 after R 3.4.4. */
-  unsigned long pad  : 59;
+  unsigned long long pad  : 59;
 #endif
 };
 
