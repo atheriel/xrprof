@@ -34,8 +34,19 @@ size_t copy_address(phandle pid, void *addr, void *data, size_t len) {
   }
   return bytes;
 }
+#elif defined(__WIN32)
+#include <windows.h> /* for ReadProcessMemory, GetLastError */
+
+size_t copy_address(phandle pid, void *addr, void *data, size_t len) {
+  if (!ReadProcessMemory(pid, addr, data, len, NULL)) {
+    fprintf(stderr, "error: Failed to read memory in the remote process: %ld.\n",
+            GetLastError());
+    return -1;
+  }
+  return len;
+}
 #else
-#error "No support for non-Linux platforms."
+#error "No support for this platform."
 #endif
 
 int copy_context(phandle pid, void *addr, RCNTXT *data) {
