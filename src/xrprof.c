@@ -24,10 +24,24 @@
 #define DEFAULT_DURATION 3600 // One hour.
 
 static volatile int should_trace = 1;
+int install_ctrl_c_handler();
+
+#ifdef __unix
+#include <signal.h>
 
 void handle_sigint(int _sig) {
   should_trace = 0;
 }
+
+int install_ctrl_c_handler() {
+  signal(SIGINT, handle_sigint);
+  return 0;
+}
+#else
+int install_ctrl_c_handler() {
+  return 0;
+}
+#endif
 
 void usage(const char *name) {
   // TODO: Add a long help message.
@@ -143,7 +157,10 @@ int main(int argc, char **argv) {
   /* Stop the tracee and read the R stack information. */
 
   // Allow the user to stop the tracing with Ctrl-C.
-  signal(SIGINT, handle_sigint);
+  if ((code = install_ctrl_c_handler()) < 0) {
+    return -code;
+  }
+
   float elapsed = 0;
 
   // Write the Rprof.out header.
