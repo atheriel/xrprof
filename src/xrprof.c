@@ -35,6 +35,23 @@ int install_ctrl_c_handler() {
   signal(SIGINT, handle_sigint);
   return 0;
 }
+#elif defined(__WIN32)
+#include <windows.h>  /* for BOOL, DWORD, SetConsoleCtrlHandler, TRUE */
+
+BOOL handle_signal(DWORD signal) {
+  if (signal == CTRL_C_EVENT) {
+    should_trace = 0;
+  }
+  return TRUE;
+}
+
+int install_ctrl_c_handler() {
+  if (!SetConsoleCtrlHandler(handle_signal, TRUE)) {
+    fprintf(stderr, "error: Could not set console control handler.\n");
+    return -1;
+  }
+  return 0;
+}
 #else
 int install_ctrl_c_handler() {
   return 0;
