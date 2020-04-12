@@ -65,9 +65,15 @@ int proc_destroy(phandle pid) {
 #include <unistd.h>  /* for pid_t */
 #include <windows.h>
 
+/* The internal APIs that everyone seems to use from ntdll:
+   https://stackoverflow.com/questions/11010165/how-to-suspend-resume-a-process-in-windows/11010508#11010508
+   https://github.com/benfred/remoteprocess/blob/cdbf4aa23f48b48f949da3dadfc5878ab6e94f53/src/windows/mod.rs#L43 */
+LONG NtSuspendProcess(IN HANDLE ProcessHandle);
+LONG NtResumeProcess(IN HANDLE ProcessHandle);
+
 int proc_create(phandle *out, void *data) {
   pid_t pid = *((pid_t *) data);
-  *out = OpenProcess(PROCESS_VM_READ, FALSE, pid);
+  *out = OpenProcess(PROCESS_VM_READ | PROCESS_SUSPEND_RESUME, FALSE, pid);
   if (!*out) {
     fprintf(stderr, "error: Failed to open process %I64d: %ld.\n", pid,
             GetLastError());
@@ -77,10 +83,18 @@ int proc_create(phandle *out, void *data) {
 }
 
 int proc_suspend(phandle pid) {
+  if (NtSuspendProcess(pid) != 0) {
+    fprintf(stderr, "error: Failed to suspend process: %ld.\n", GetLastError());
+    return -1;
+  }
   return 0;
 }
 
 int proc_resume(phandle pid) {
+  if (NtResumeProcess(pid) != 0) {
+    fprintf(stderr, "error: Failed to resume process: %ld.\n", GetLastError());
+    return -1;
+  }
   return 0;
 }
 
