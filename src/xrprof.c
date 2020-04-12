@@ -11,7 +11,10 @@
 #include <sys/wait.h>
 #include <time.h>    /* for timespec */
 
+#ifdef __linux
+#define HAVE_LIBUNWIND
 #include <libunwind-ptrace.h>
+#endif
 
 #include "cursor.h"
 
@@ -36,7 +39,10 @@ int main(int argc, char **argv) {
   pid_t pid = -1;
   int freq = DEFAULT_FREQ;
   float duration = DEFAULT_DURATION;
-  int verbose = 0, mixed_mode = 0;
+  int verbose = 0;
+#ifdef HAVE_LIBUNWIND
+  int mixed_mode = 0;
+#endif
 
   int opt;
   while ((opt = getopt(argc, argv, "hvmF:d:p:")) != -1) {
@@ -49,7 +55,11 @@ int main(int argc, char **argv) {
       verbose++;
       break;
     case 'm':
+#ifdef HAVE_LIBUNWIND
       mixed_mode = 1;
+#else
+      /* TODO: We should probably warn the user. */
+#endif
       break;
     case 'p':
       pid = strtol(optarg, NULL, 10);
@@ -119,6 +129,7 @@ int main(int argc, char **argv) {
     goto done;
   }
 
+#ifdef HAVE_LIBUNWIND
   unw_addr_space_t uw_as;
   void *uw_cxt;
   unw_cursor_t uw_cursor;
@@ -127,6 +138,7 @@ int main(int argc, char **argv) {
     unw_set_caching_policy(uw_as, UNW_CACHE_GLOBAL);
     uw_cxt = _UPT_create(pid);
   }
+#endif
 
   /* Stop the tracee and read the R stack information. */
 
@@ -175,6 +187,7 @@ int main(int argc, char **argv) {
       goto done;
     }
 
+#ifdef HAVE_LIBUNWIND
     if (mixed_mode && unw_init_remote(&uw_cursor, uw_as, uw_cxt) != 0) {
       perror("fatal: Failed to initialize libunwind cursor.");
       code++;
@@ -244,6 +257,7 @@ int main(int argc, char **argv) {
         goto done;
       }
     }
+#endif
 
     do {
       rsym[0] = '\0';
