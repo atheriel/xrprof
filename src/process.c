@@ -61,6 +61,37 @@ int proc_destroy(phandle pid) {
   ptrace(PTRACE_DETACH, pid, NULL, NULL);
   return 0;
 }
+#elif defined(__WIN32)
+#include <unistd.h>  /* for pid_t */
+#include <windows.h>
+
+int proc_create(phandle *out, void *data) {
+  pid_t pid = *((pid_t *) data);
+  *out = OpenProcess(PROCESS_VM_READ, FALSE, pid);
+  if (!*out) {
+    fprintf(stderr, "error: Failed to open process %I64d: %ld.\n", pid,
+            GetLastError());
+    return -1;
+  }
+  return 0;
+}
+
+int proc_suspend(phandle pid) {
+  return 0;
+}
+
+int proc_resume(phandle pid) {
+  return 0;
+}
+
+int proc_destroy(phandle pid) {
+  BOOL ret = CloseHandle(pid);
+  if (ret == FALSE) {
+    fprintf(stderr, "Failed to close process handle: %ld.\n", GetLastError());
+    return -1;
+  }
+  return 0;
+}
 #else
 #error "No support for non-Linux platforms."
 #endif

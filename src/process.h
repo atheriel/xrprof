@@ -1,7 +1,9 @@
 #ifndef XRPROF_PROCESS_H
 #define XRPROF_PROCESS_H
 
-#ifdef __unix
+#ifdef __WIN32
+typedef void * phandle;
+#elif defined(__unix)
 #include <unistd.h>  /* for pid_t */
 typedef pid_t phandle;
 #else
