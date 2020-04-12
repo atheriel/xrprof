@@ -1,6 +1,9 @@
+#include <stdio.h>      /* for fprintf */
+#include "locate.h"
+
+#ifdef __linux
 #include <fcntl.h>      /* for open */
 #include <stddef.h>     /* for ptrdiff_t */
-#include <stdio.h>      /* for fprintf */
 #include <stdlib.h>     /* for malloc */
 #include <string.h>     /* for strstr, strndup */
 
@@ -8,7 +11,6 @@
 #include <libelf.h>
 #include <gelf.h>
 
-#include "locate.h"
 #include "memory.h"
 
 #define MAX_LIBR_PATH_LEN 128
@@ -176,3 +178,6 @@ int locate_libR_globals(phandle pid, struct libR_globals *out) {
 
   return 0;
 }
+#else
+#error "No support for non-Linux platforms."
+#endif
