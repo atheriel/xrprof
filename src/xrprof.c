@@ -8,6 +8,10 @@
 #include <unistd.h>
 #include <time.h>    /* for timespec */
 
+#ifdef __MINGW
+#include <pthreads.h> /* for nanosleep */
+#endif
+
 #ifdef __linux
 #define HAVE_LIBUNWIND
 #include <libunwind-ptrace.h>
