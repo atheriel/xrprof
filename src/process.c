@@ -86,6 +86,12 @@ int proc_create(phandle *out, void *data) {
 
 int proc_suspend(phandle pid) {
   NTSTATUS ret = NtSuspendProcess(pid);
+  if (ret == 0XC0000002) {
+    /* Running under Wine. */
+    fprintf(stderr, "warning: Process cannot be suspended/resumed (%#lX).\n",
+            ret);
+    return 0;
+  }
   if (ret != 0) {
     fprintf(stderr, "error: Failed to suspend process: %ld (%#lX).\n",
             RtlNtStatusToDosError(ret), ret);
@@ -96,6 +102,12 @@ int proc_suspend(phandle pid) {
 
 int proc_resume(phandle pid) {
   NTSTATUS ret = NtResumeProcess(pid);
+  if (ret == 0XC0000002) {
+    /* Running under Wine. */
+    fprintf(stderr, "warning: Process cannot be suspended/resumed (%#lX).\n",
+            ret);
+    return 0;
+  }
   if (ret != 0) {
     fprintf(stderr, "error: Failed to resume process: %ld (%#lX).\n",
             RtlNtStatusToDosError(ret), ret);
