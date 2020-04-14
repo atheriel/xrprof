@@ -46,3 +46,7 @@ if [ ! -z "$SUDO_USER" ]; then
     # Ensure we can actually look at the output.
     chown $SUDO_USER:$SUDO_USER $OUTFILE
 fi
+
+LINES=`wc -l $OUTFILE | cut -d ' ' -f 1`
+echo "--- $OUTFILE ($LINES lines):"
+head $OUTFILE
