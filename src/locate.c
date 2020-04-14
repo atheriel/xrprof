@@ -208,7 +208,10 @@ int locate_libR_globals(phandle pid, struct libR_globals *out) {
       goto error;
     }
 
-    /* FIXME: Only select the module that looks like R. */
+    /* A module that looks like R. */
+    if (!strstr(mpath, "R.dll")) {
+      continue;
+    }
 
     base = SymLoadModuleEx(pid, NULL, mpath, NULL, (DWORD64) mods[i], 0, NULL, 0);
     if (!base) {
