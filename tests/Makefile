@@ -1,6 +1,7 @@
 TEST_PROFILES := sleep.out
 BIN = ../xrprof
 RSCRIPT = Rscript
+SUDO = sudo
 
 all: $(TEST_PROFILES)
 
@@ -9,6 +10,6 @@ clean:
 
 %.out: %.R
 	echo $(BIN)
-	sudo BIN=$(BIN) RSCRIPT=$(RSCRIPT) ./harness.sh $<
+	$(SUDO) BIN=$(BIN) ./harness.sh $<
 
 .PHONY: all clean
