@@ -64,6 +64,7 @@ int proc_destroy(phandle pid) {
 #elif defined(__WIN32)
 #include <unistd.h>  /* for pid_t */
 #include <windows.h>
+#include <winternl.h>
 
 /* The internal APIs that everyone seems to use from ntdll:
    https://stackoverflow.com/questions/11010165/how-to-suspend-resume-a-process-in-windows/11010508#11010508
@@ -84,16 +85,20 @@ int proc_create(phandle *out, void *data) {
 }
 
 int proc_suspend(phandle pid) {
-  if (NtSuspendProcess(pid) != 0) {
-    fprintf(stderr, "error: Failed to suspend process: %ld.\n", GetLastError());
+  NTSTATUS ret = NtSuspendProcess(pid);
+  if (ret != 0) {
+    fprintf(stderr, "error: Failed to suspend process: %ld (%#lX).\n",
+            RtlNtStatusToDosError(ret), ret);
     return -1;
   }
   return 0;
 }
 
 int proc_resume(phandle pid) {
-  if (NtResumeProcess(pid) != 0) {
-    fprintf(stderr, "error: Failed to resume process: %ld.\n", GetLastError());
+  NTSTATUS ret = NtResumeProcess(pid);
+  if (ret != 0) {
+    fprintf(stderr, "error: Failed to resume process: %ld (%#lX).\n",
+            RtlNtStatusToDosError(ret), ret);
     return -1;
   }
   return 0;
