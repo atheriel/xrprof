@@ -86,6 +86,10 @@ int proc_create(phandle *out, void *data) {
 
 int proc_suspend(phandle pid) {
   NTSTATUS ret = NtSuspendProcess(pid);
+  if (ret == 0XC000010A) {
+    fprintf(stderr, "Process finished.\n");
+    return -2;
+  }
   if (ret == 0XC0000002) {
     /* Running under Wine. */
     fprintf(stderr, "warning: Process cannot be suspended/resumed (%#lX).\n",
