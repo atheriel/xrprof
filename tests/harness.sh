@@ -26,6 +26,11 @@ set -e
 if [ -z "$SUDO_USER" ]; then
     $RSCRIPT $TEST &
     PID=$!
+    # Try to detect Cygwin. Unixy PIDs will not work for OpenProcess().
+    WINPID=`cat /proc/$PID/winpid || true`
+    if [ ! -z "$WINPID" ]; then
+        PID=$WINPID
+    fi
 else
     # Run the script as the original sudo user (i.e. not root), so that it
     # behaves as expected.
