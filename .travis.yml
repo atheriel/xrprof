@@ -4,3 +4,5 @@ addons:
   apt:
     packages:
       - r-base
+      - libunwind-dev
+      - libelf-dev
