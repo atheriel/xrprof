@@ -9,14 +9,14 @@
 struct xrprof_cursor {
   void *rcxt_ptr;
   RCNTXT *cptr;
-  libR_globals globals;
+  struct libR_globals globals;
   pid_t pid;
   int depth;
 };
 
 struct xrprof_cursor *xrprof_create(pid_t pid) {
   /* Find the symbols and addresses we need. */
-  libR_globals globals;
+  struct libR_globals globals;
   if (locate_libR_globals(pid, &globals) < 0) return NULL;
 
   struct xrprof_cursor *out = malloc(sizeof(struct xrprof_cursor));
@@ -35,9 +35,6 @@ void xrprof_destroy(struct xrprof_cursor *cursor) {
   }
   if (cursor->cptr) {
     free(cursor->cptr);
-  }
-  if (cursor->globals) {
-    free(cursor->globals);
   }
   return free(cursor);
 }
@@ -81,17 +78,17 @@ int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
       copy_sexp(cursor->pid, (void *) CAR(&cdr), &lhs);
       copy_sexp(cursor->pid, (void *) CDR(&cdr), &cdr);
       copy_sexp(cursor->pid, (void *) CAR(&cdr), &rhs);
-      if ((uintptr_t) CAR(&fun) == cursor->globals->doublecolon &&
+      if ((uintptr_t) CAR(&fun) == cursor->globals.doublecolon &&
           TYPEOF(&lhs) == SYMSXP && TYPEOF(&rhs) == SYMSXP) {
         copy_char(cursor->pid, (void *) PRINTNAME(&lhs), lname, MAX_SYM_LEN);
         copy_char(cursor->pid, (void *) PRINTNAME(&rhs), rname, MAX_SYM_LEN);
         written = snprintf(buff, len, "%s::%s", lname, rname);
-      } else if ((uintptr_t) CAR(&fun) == cursor->globals->triplecolon &&
+      } else if ((uintptr_t) CAR(&fun) == cursor->globals.triplecolon &&
                  TYPEOF(&lhs) == SYMSXP && TYPEOF(&rhs) == SYMSXP) {
         copy_char(cursor->pid, (void *) PRINTNAME(&lhs), lname, MAX_SYM_LEN);
         copy_char(cursor->pid, (void *) PRINTNAME(&rhs), rname, MAX_SYM_LEN);
         written = snprintf(buff, len, "%s:::%s", lname, rname);
-      } else if ((uintptr_t) CAR(&fun) == cursor->globals->dollar &&
+      } else if ((uintptr_t) CAR(&fun) == cursor->globals.dollar &&
                  TYPEOF(&lhs) == SYMSXP && TYPEOF(&rhs) == SYMSXP) {
         copy_char(cursor->pid, (void *) PRINTNAME(&lhs), lname, MAX_SYM_LEN);
         copy_char(cursor->pid, (void *) PRINTNAME(&rhs), rname, MAX_SYM_LEN);
@@ -120,7 +117,7 @@ int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
 
 int xrprof_init(struct xrprof_cursor *cursor) {
   uintptr_t context_ptr;
-  size_t bytes = copy_address(cursor->pid, (void *)cursor->globals->context_addr,
+  size_t bytes = copy_address(cursor->pid, (void *)cursor->globals.context_addr,
                               &context_ptr, sizeof(uintptr_t));
   if (bytes < sizeof(uintptr_t)) {
     /* copy_address() will have already printed an error. */

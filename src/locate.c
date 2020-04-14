@@ -64,7 +64,7 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
 }
 
 
-int locate_libR_globals(pid_t pid, libR_globals *globals) {
+int locate_libR_globals(pid_t pid, struct libR_globals *out) {
   /* Open the same libR.so in the tracer so we can determine the symbol offsets
      to read memory at in the tracee. */
 
@@ -130,9 +130,6 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
     return -1;
   }
 
-  libR_globals ret = (libR_globals) malloc(sizeof(struct libR_globals_s));
-  ret->context_addr = 0;
-
   Elf_Data *data = elf_getdata(scn, NULL);
   Elf64_Sym sym;
   char *symbol;
@@ -145,43 +142,37 @@ int locate_libR_globals(pid_t pid, libR_globals *globals) {
     if (strncmp("R_GlobalContext", symbol, 15) == 0) {
       /* The R_GlobalContext value will change, so we only want the address to
          read the value from. */
-      ret->context_addr = remote + sym.st_value;
+      out->context_addr = remote + sym.st_value;
     } else if (strncmp("R_DoubleColonSymbol", symbol, 19) == 0) {
       /* copy_address() will print its own errors. */
       bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
                            sizeof(uintptr_t));
-      ret->doublecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+      out->doublecolon = bytes < sizeof(uintptr_t) ? 0 : value;
     } else if (strncmp("R_TripleColonSymbol", symbol, 19) == 0) {
       bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
                            sizeof(uintptr_t));
-      ret->triplecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+      out->triplecolon = bytes < sizeof(uintptr_t) ? 0 : value;
     } else if (strncmp("R_DollarSymbol", symbol, 14) == 0) {
       bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
                            sizeof(uintptr_t));
-      ret->dollar = bytes < sizeof(uintptr_t) ? 0 : value;
+      out->dollar = bytes < sizeof(uintptr_t) ? 0 : value;
     } else if (strncmp("R_BracketSymbol", symbol, 15) == 0) {
       bytes = copy_address(pid, (void *)remote + sym.st_value, &value,
                            sizeof(uintptr_t));
-      ret->bracket = bytes < sizeof(uintptr_t) ? 0 : value;
+      out->bracket = bytes < sizeof(uintptr_t) ? 0 : value;
     }
   }
 
   elf_end(elf);
   close(fd);
-
-  if (!ret->doublecolon || !ret->triplecolon || !ret->dollar ||
-      !ret->bracket || !ret->context_addr) {
-    fprintf(stderr, "error: Failed to locate required R global variables in process %d's memory. Are you sure it is an R program?\n",
-            pid);
-    free(ret);
-    ret = NULL;
-  }
   free(path);
 
-  if (!ret) {
+  if (!out->doublecolon || !out->triplecolon || !out->dollar || !out->bracket ||
+      !out->context_addr) {
+    fprintf(stderr, "error: Failed to locate required R global variables in process %d's memory. Are you sure it is an R program?\n",
+            pid);
     return -1;
   }
 
-  *globals = ret;
   return 0;
 }
