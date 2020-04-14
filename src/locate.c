@@ -183,6 +183,10 @@ int locate_libR_globals(phandle pid, struct libR_globals *out) {
 #include <dbghelp.h> /* for SymInitialize, SymLoadModuleEx, etc */
 
 int locate_libR_globals(phandle pid, struct libR_globals *out) {
+  if (proc_suspend(pid) < 0) {
+    return -1;
+  }
+
   /* TODO: Should we use TRUE here to force loading symbols from all modules? */
   if (!SymInitialize(pid, NULL, FALSE)) {
     fprintf(stderr, "error: Failed to load remote process symbols: %ld.\n",
@@ -306,10 +310,11 @@ remote process's memory. Are you sure it is an R program?\n");
   }
 
   SymCleanup(pid);
-  return 0;
+  return proc_resume(pid);
 
  error:
   SymCleanup(pid);
+  proc_resume(pid);
   return -1;
 }
 #else
