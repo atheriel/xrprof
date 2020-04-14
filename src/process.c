@@ -73,7 +73,8 @@ LONG NtResumeProcess(IN HANDLE ProcessHandle);
 
 int proc_create(phandle *out, void *data) {
   pid_t pid = *((pid_t *) data);
-  *out = OpenProcess(PROCESS_VM_READ | PROCESS_SUSPEND_RESUME, FALSE, pid);
+  *out = OpenProcess(PROCESS_VM_READ | PROCESS_SUSPEND_RESUME |
+                     PROCESS_QUERY_INFORMATION, FALSE, pid);
   if (!*out) {
     fprintf(stderr, "error: Failed to open process %I64d: %ld.\n", pid,
             GetLastError());
