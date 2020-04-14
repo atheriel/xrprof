@@ -1,15 +1,16 @@
+#include <stdio.h>      /* for fprintf */
+#include "locate.h"
+#include "memory.h"
+
+#ifdef __linux
 #include <fcntl.h>      /* for open */
 #include <stddef.h>     /* for ptrdiff_t */
-#include <stdio.h>      /* for fprintf */
 #include <stdlib.h>     /* for malloc */
 #include <string.h>     /* for strstr, strndup */
 
 #include <elf.h>
 #include <libelf.h>
 #include <gelf.h>
-
-#include "locate.h"
-#include "memory.h"
 
 #define MAX_LIBR_PATH_LEN 128
 
@@ -64,7 +65,7 @@ static int find_libR(pid_t pid, char **path, uintptr_t *addr) {
 }
 
 
-int locate_libR_globals(pid_t pid, struct libR_globals *out) {
+int locate_libR_globals(phandle pid, struct libR_globals *out) {
   /* Open the same libR.so in the tracer so we can determine the symbol offsets
      to read memory at in the tracee. */
 
@@ -176,3 +177,146 @@ int locate_libR_globals(pid_t pid, struct libR_globals *out) {
 
   return 0;
 }
+#elif defined(__WIN32)
+#include <windows.h>
+#include <psapi.h> /* for EnumProcessModules */
+#include <dbghelp.h> /* for SymInitialize, SymLoadModuleEx, etc */
+
+int locate_libR_globals(phandle pid, struct libR_globals *out) {
+  if (proc_suspend(pid) < 0) {
+    return -1;
+  }
+
+  /* TODO: Should we use TRUE here to force loading symbols from all modules? */
+  if (!SymInitialize(pid, NULL, FALSE)) {
+    fprintf(stderr, "error: Failed to load remote process symbols: %ld.\n",
+            GetLastError());
+    return -1;
+  }
+
+  HMODULE mods[1024];
+  DWORD mod_bytes;
+  if (!EnumProcessModules(pid, mods, sizeof(mods), &mod_bytes)) {
+    fprintf(stderr, "error: Failed to enumerate remote process modules: %ld.\n",
+            GetLastError());
+    goto error;
+  }
+  int entries = mod_bytes / sizeof(HMODULE);
+
+  TCHAR mpath[256];
+  DWORD64 base;
+  for (int i = 0; i < entries; i++ ) {
+    if (!GetModuleFileNameEx(pid, mods[i], mpath, sizeof(mpath) / sizeof(TCHAR))) {
+      fprintf(stderr, "error: Failed to get remote process module: %ld.\n",
+              GetLastError());
+      goto error;
+    }
+
+    /* A module that looks like R. */
+    if (!strstr(mpath, "R.dll")) {
+      continue;
+    }
+
+    base = SymLoadModuleEx(pid, NULL, mpath, NULL, (DWORD64) mods[i], 0, NULL, 0);
+    if (!base) {
+      fprintf(stderr, "error: Failed to load symbols for %s (0x%p): %ld.\n",
+              mpath, mods[i], GetLastError());
+      goto error;
+    }
+
+    uintptr_t value;
+    size_t bytes;
+    /* This is actually the crazy structure SymFromName uses. */
+    struct {
+      SYMBOL_INFO info;
+      char buf[MAX_SYM_NAME];
+    } info;
+    info.info.SizeOfStruct = sizeof(SYMBOL_INFO);
+    info.info.ModBase = base;
+    info.info.MaxNameLen = MAX_SYM_NAME - 1;
+    char *sym;
+
+    sym = "R_GlobalContext";
+    if (!SymFromName(pid, sym, &info.info)) {
+      if (GetLastError() != 123) {
+        fprintf(stderr, "error: Failed to lookup symbol: %ld.\n", GetLastError());
+        goto error;
+      }
+    } else {
+      out->context_addr = info.info.Address;
+    }
+
+    sym = "R_DoubleColonSymbol";
+    if (!SymFromName(pid, sym, &info.info)) {
+      if (GetLastError() != 123) {
+        fprintf(stderr, "error: Failed to lookup symbol: %ld.\n", GetLastError());
+        goto error;
+      }
+    } else {
+      /* copy_address() will print its own errors. */
+      bytes = copy_address(pid, (void *) info.info.Address, &value,
+                           sizeof(uintptr_t));
+      out->doublecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+    }
+
+    sym = "R_TripleColonSymbol";
+    if (!SymFromName(pid, sym, &info.info)) {
+      if (GetLastError() != 123) {
+        fprintf(stderr, "error: Failed to lookup symbol: %ld.\n", GetLastError());
+        goto error;
+      }
+    } else {
+      bytes = copy_address(pid, (void *) info.info.Address, &value,
+                           sizeof(uintptr_t));
+      out->triplecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+    }
+
+    sym = "R_DollarSymbol";
+    if (!SymFromName(pid, sym, &info.info)) {
+      if (GetLastError() != 123) {
+        fprintf(stderr, "error: Failed to lookup symbol: %ld.\n", GetLastError());
+        goto error;
+      }
+    } else {
+      bytes = copy_address(pid, (void *) info.info.Address, &value,
+                           sizeof(uintptr_t));
+      out->dollar = bytes < sizeof(uintptr_t) ? 0 : value;
+    }
+
+    sym = "R_BracketSymbol";
+    if (!SymFromName(pid, sym, &info.info)) {
+      if (GetLastError() != 123) {
+        fprintf(stderr, "error: Failed to lookup symbol: %ld.\n", GetLastError());
+        goto error;
+      }
+    } else {
+      bytes = copy_address(pid, (void *) info.info.Address, &value,
+                           sizeof(uintptr_t));
+      out->bracket = bytes < sizeof(uintptr_t) ? 0 : value;
+    }
+
+    if (!SymUnloadModule64(pid, base)) {
+      fprintf(stderr, "error: Failed to unload symbols for %s (0x%p): %ld.\n",
+              mpath, mods[i], GetLastError());
+      goto error;
+    }
+  }
+
+  if (!out->doublecolon || !out->triplecolon || !out->dollar || !out->bracket ||
+      !out->context_addr) {
+    fprintf(stderr, "error: Failed to locate required R global variables in \
+remote process's memory. Are you sure it is an R program?\n");
+    goto error;
+  }
+
+  SymCleanup(pid);
+  return proc_resume(pid);
+
+ error:
+  SymCleanup(pid);
+  proc_resume(pid);
+  return -1;
+}
+#else
+#error "No support for non-Linux platforms."
+#endif

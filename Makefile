@@ -5,7 +5,8 @@ BIN = xrprof
 BINOBJ = src/xrprof.o
 OBJ = src/cursor.o \
   src/locate.o \
-  src/memory.o
+  src/memory.o \
+  src/process.o
 SHLIB = libxrprof.so
 
 all: $(BIN)
@@ -29,6 +30,9 @@ src/locate.o: src/locate.c src/locate.h src/memory.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 src/memory.o: src/memory.c src/memory.h src/rdefs.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+src/process.o: src/process.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 src/xrprof.o: src/xrprof.c src/cursor.h

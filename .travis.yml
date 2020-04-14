@@ -1,8 +1,22 @@
 language: c
-script: make "CFLAGS=-O2 -Wall -fPIC -g -DR344_COMPAT" && make test
-addons:
-  apt:
-    packages:
-      - r-base
-      - libunwind-dev
-      - libelf-dev
+matrix:
+  include:
+    - os: linux
+      script:
+        - make "CFLAGS=-O2 -Wall -fPIC -g -DR344_COMPAT"
+        - make test
+      addons:
+        apt_packages:
+          - r-base
+          - libunwind-dev
+          - libelf-dev
+    - os: windows
+      before_install:
+        - choco install make r
+        # Rscript.exe is not in the PATH by default.
+        - export R_VERSION=`ls 'C:\Program Files\R\'`
+        - export PATH=$PATH:';C:\Program Files\R\'$R_VERSION'\bin\x64'
+        - Rscript.exe --version
+      script:
+        - make BIN=xrprof.exe LIBS="-lntdll -lpsapi -ldbghelp -lpthread -static"
+        - make BIN=xrprof.exe RSCRIPT="Rscript.exe" SUDO="" test

@@ -6,10 +6,11 @@
 #include <stdint.h>  /* for uintptr_t */
 #include <string.h>
 #include <unistd.h>
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <time.h>    /* for timespec */
+
+#ifdef __MINGW
+#include <pthreads.h> /* for nanosleep */
+#endif
 
 #ifdef __linux
 #define HAVE_LIBUNWIND
@@ -17,6 +18,7 @@
 #endif
 
 #include "cursor.h"
+#include "process.h"
 
 #define MAX_STACK_DEPTH 100
 #define DEFAULT_FREQ 1
@@ -24,10 +26,41 @@
 #define DEFAULT_DURATION 3600 // One hour.
 
 static volatile int should_trace = 1;
+int install_ctrl_c_handler();
+
+#ifdef __unix
+#include <signal.h>
 
 void handle_sigint(int _sig) {
   should_trace = 0;
 }
+
+int install_ctrl_c_handler() {
+  signal(SIGINT, handle_sigint);
+  return 0;
+}
+#elif defined(__WIN32)
+#include <windows.h>  /* for BOOL, DWORD, SetConsoleCtrlHandler, TRUE */
+
+BOOL handle_signal(DWORD signal) {
+  if (signal == CTRL_C_EVENT) {
+    should_trace = 0;
+  }
+  return TRUE;
+}
+
+int install_ctrl_c_handler() {
+  if (!SetConsoleCtrlHandler(handle_signal, TRUE)) {
+    fprintf(stderr, "error: Could not set console control handler.\n");
+    return -1;
+  }
+  return 0;
+}
+#else
+int install_ctrl_c_handler() {
+  return 0;
+}
+#endif
 
 void usage(const char *name) {
   // TODO: Add a long help message.
@@ -113,16 +146,16 @@ int main(int argc, char **argv) {
   sleep_spec.tv_sec = freq == 1 ? 1 : 0;
   sleep_spec.tv_nsec = freq == 1 ? 0 : 1000000000 / freq;
 
+  phandle proc;
   int code = 0;
 
   /* First, check that we can attach to the process. */
 
-  if (ptrace(PTRACE_SEIZE, pid, NULL, NULL)) {
-    perror("fatal: Failed to attach to remote process");
-    return 1;
+  if ((code = proc_create(&proc, (void *) &pid)) < 0) {
+    return -code;
   }
 
-  struct xrprof_cursor *cursor = xrprof_create(pid);
+  struct xrprof_cursor *cursor = xrprof_create(proc);
   if (!cursor) {
     fprintf(stderr, "fatal: Failed to initialize R stack cursor.\n");
     code++;
@@ -136,46 +169,29 @@ int main(int argc, char **argv) {
   if (mixed_mode) {
     uw_as = unw_create_addr_space(&_UPT_accessors, 0);
     unw_set_caching_policy(uw_as, UNW_CACHE_GLOBAL);
-    uw_cxt = _UPT_create(pid);
+    uw_cxt = _UPT_create(proc);
   }
 #endif
 
   /* Stop the tracee and read the R stack information. */
 
   // Allow the user to stop the tracing with Ctrl-C.
-  signal(SIGINT, handle_sigint);
+  if ((code = install_ctrl_c_handler()) < 0) {
+    return -code;
+  }
+
   float elapsed = 0;
 
   // Write the Rprof.out header.
   printf("sample.interval=%d\n", 1000000 / freq);
 
   while (should_trace && elapsed <= duration) {
-    if (ptrace(PTRACE_INTERRUPT, pid, NULL, NULL)) {
-      perror("fatal: Failed to interrupt remote process");
-      code++;
-      goto done;
-    }
-    int wstatus;
-    if (waitpid(pid, &wstatus, 0) < 0) {
-      perror("fatal: Failed to obtain remote process status information");
-      code++;
-      goto done;
-    }
-    if (WIFEXITED(wstatus)) {
-      fprintf(stderr, "Process %d finished.\n", pid);
-      break;
-    } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGCHLD) {
-      ptrace(PTRACE_CONT, pid, NULL, NULL);
-      continue;
-    } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) != SIGTRAP) {
-      fprintf(stderr, "fatal: Unexpected stop signal in remote process: %d.\n",
-              WSTOPSIG(wstatus));
-      code++;
-      goto done;
-    } else if (!WIFSTOPPED(wstatus)) {
-      fprintf(stderr, "fatal: Unexpected remote process status: %d.\n",
-              WSTOPSIG(wstatus));
-      code++;
+    if ((code = proc_suspend(proc)) < 0) {
+      if (code == -2) {
+        code = 0;
+        break;
+      }
+      code = -code;
       goto done;
     }
 
@@ -278,9 +294,8 @@ int main(int argc, char **argv) {
     }
     printf("\n");
 
-    if (ptrace(PTRACE_CONT, pid, NULL, NULL)) {
-      perror("fatal: Failed to continue remote process");
-      code++;
+    if ((code = proc_resume(proc)) < 0) {
+      code = -code;
       goto done;
     }
     if (nanosleep(&sleep_spec, NULL) < 0) {
@@ -290,7 +305,7 @@ int main(int argc, char **argv) {
   }
 
  done:
-  ptrace(PTRACE_DETACH, pid, NULL, NULL);
+  proc_destroy(proc);
   xrprof_destroy(cursor);
 
   return code;
