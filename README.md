@@ -39,6 +39,14 @@ project joins a large list similar tools for other languages, such as `perf`
 
 ### On Linux
 
+`xrprof` depends on libelf and libunwind, so you must have their headers to
+compile the program. For example, on Debian-based systems (including Ubuntu),
+you can install these with
+
+```console
+$ sudo apt-get install libelf-dev libunwind-dev
+```
+
 A simple `Makefile` is provided. Build the binary with
 
 ```console
