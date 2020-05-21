@@ -6,7 +6,8 @@
 status](https://travis-ci.org/atheriel/xrprof.svg?branch=master)](https://travis-ci.org/atheriel/xrprof)
 <!-- badges: end -->
 
-`xrprof` (formerly `rtrace`) is an external sampling profiler for R on Linux.
+`xrprof` (formerly `rtrace`) is an external sampling profiler for R on Linux and
+Windows.
 
 Many R users will be familiar with using the built-in sampling profiler
 `Rprof()` to generate data on what their code is doing, and there are several
@@ -36,6 +37,8 @@ project joins a large list similar tools for other languages, such as `perf`
 
 ## Building
 
+### On Linux
+
 A simple `Makefile` is provided. Build the binary with
 
 ```console
@@ -51,6 +54,20 @@ $ sudo make install
 This will install the binary to `/usr/local/bin` and use `setcap` to mark it for
 use without `sudo`. The `install` target supports `prefix` and `DESTDIR`.
 
+### On Windows
+
+You must have a build environment set up. For R users, the best option is to use
+R's own [Rtools for Windows](https://cran.r-project.org/bin/windows/Rtools/)
+(which is also used to install packages from source). You can then launch
+"Rtools MinGW 64-bit" from the Start Menu and navigate to the source directory;
+then run
+
+```console
+$ make -f Makefile.win
+```
+
+The resulting `xrprof.exe` program can be run from `cmd.exe` or PowerShell.
+
 ## Usage
 
 The profiler has a simple interface:
@@ -59,6 +76,8 @@ The profiler has a simple interface:
 
 The `Rprof.out` format is written to standard output and errors or other
 messages are written to standard error.
+
+On Windows, R's process ID (PID) can be looked up in Task Manager.
 
 Along with the sampling profiler itself, there is also a `stackcollapse-Rprof.R`
 script in `tools/` that converts the `Rprof.out` format to one that can be
@@ -89,6 +108,9 @@ compiled to use it).
 
 `xrprof` is mount-namespace-aware, so it supports profiling R processes running
 inside Docker containers.
+
+On Windows, `xrprof` makes use of APIs like `ReadProcessMemory()`,
+`NtSuspendProcess()`, and `SymFromName()` to achieve the analogous result.
 
 ## Credits
 
