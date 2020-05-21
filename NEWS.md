@@ -1,3 +1,13 @@
+# xrprof 0.3.0
+
+* `xrprof` can now be built and run on Windows. (#3)
+
+* Experimental support for "mixed-mode" profiling of both R and C/C++ stacks on
+  Linux with `-m`. This also introduces a dependency on `libunwind`. Note that
+  the exact output format is not fixed and may change in the future. (#8)
+
+* Various performance improvements.
+
 # xrprof 0.2.0
 
 * `libelf` is now required.
