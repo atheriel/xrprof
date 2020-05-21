@@ -1,0 +1,4 @@
+include Makefile
+
+LIBS = -lntdll -lpsapi -ldbghelp -lpthread -static
+BIN = xrprof.exe
