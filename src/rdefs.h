@@ -1,6 +1,7 @@
 #ifndef XRPROF_RDEFS_H
 #define XRPROF_RDEFS_H
 
+#include <setjmp.h>
 #include <stddef.h>
 
 /*  Extracted from Rinternals.h and Defn.h. License header reproduced below.
@@ -101,13 +102,21 @@ typedef union { VECTOR_SEXPREC s; double align; } SEXPREC_ALIGN;
 #define PRINTNAME(x) ((x)->u.symsxp.pname)
 #define STDVEC_DATAPTR(x) ((void *) (((SEXPREC_ALIGN *) (x)) + 1))
 
+/* From gnuwin32/fixed/h/psignal.h */
+#ifdef __WIN32
+typedef int sigset_t;
+
+typedef struct {
+  jmp_buf jmpbuf;
+  int mask_was_saved;
+  sigset_t saved_mask;
+} sigjmp_buf[1];
+#endif
+
 /* From Defn.h: */
 
 #undef BC_INT_STACK
-#ifndef JMP_BUF
-#include <setjmp.h>
-#define JMP_BUF jmp_buf
-#endif
+#define JMP_BUF sigjmp_buf
 
 typedef struct {
   int tag;
