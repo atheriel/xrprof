@@ -18,5 +18,5 @@ matrix:
         - export PATH=$PATH:';C:\Program Files\R\'$R_VERSION'\bin\x64'
         - Rscript.exe --version
       script:
-        - make BIN=xrprof.exe LIBS="-lntdll -lpsapi -ldbghelp -lpthread -static"
-        - make BIN=xrprof.exe RSCRIPT="Rscript.exe" SUDO="" test
+        - make -f Makefile.win
+        - make -f Makefile.win RSCRIPT="Rscript.exe" SUDO="" test
