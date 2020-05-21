@@ -1,4 +1,4 @@
-CFLAGS = -O2 -Wall -fPIC -g
+CFLAGS = -O2 -Wall -fPIC -mno-ms-bitfields -g
 LIBS = -lelf -lunwind-ptrace -lunwind-generic
 
 BIN = xrprof
