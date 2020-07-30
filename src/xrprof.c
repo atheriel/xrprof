@@ -64,7 +64,7 @@ int install_ctrl_c_handler() {
 
 void usage(const char *name) {
   // TODO: Add a long help message.
-  printf("Usage: %s [-v] [-m] [-F <freq>] [-d <duration>] -p <pid>\n", name);
+  printf("Usage: %s [-v] [-m] [-F <freq>] [-d <duration>] [-o file] -p <pid>\n", name);
   return;
 }
 
@@ -73,12 +73,13 @@ int main(int argc, char **argv) {
   int freq = DEFAULT_FREQ;
   float duration = DEFAULT_DURATION;
   int verbose = 0;
+  FILE *outfile = stdout;
 #ifdef HAVE_LIBUNWIND
   int mixed_mode = 0;
 #endif
 
   int opt;
-  while ((opt = getopt(argc, argv, "hvmF:d:p:")) != -1) {
+  while ((opt = getopt(argc, argv, "hvmF:d:o:p:")) != -1) {
     switch (opt) {
     case 'h':
       usage(argv[0]);
@@ -127,6 +128,13 @@ int main(int argc, char **argv) {
         duration = DEFAULT_DURATION;
         fprintf(stderr, "warning: Invalid duration argument, failling back on the default %.0f.\n",
                 duration);
+      }
+      break;
+    case 'o':
+      outfile = fopen(optarg, "w");
+      if (!outfile) {
+        perror("fatal: Failed to open output file");
+        return 1;
       }
       break;
     default: /* '?' */
@@ -183,7 +191,7 @@ int main(int argc, char **argv) {
   float elapsed = 0;
 
   // Write the Rprof.out header.
-  printf("sample.interval=%d\n", 1000000 / freq);
+  fprintf(outfile, "sample.interval=%d\n", 1000000 / freq);
 
   while (should_trace && elapsed <= duration) {
     if ((code = proc_suspend(proc)) < 0) {
@@ -231,7 +239,7 @@ int main(int argc, char **argv) {
 
         if ((ret = unw_get_proc_name(&uw_cursor, sym, sizeof(sym), &offset)) < 0) {
           if (ret == -UNW_EUNSPEC || ret == -UNW_ENOINFO) {
-            printf("\"<Native:0x%lx>\" ", ip);
+            fprintf(outfile, "\"<Native:0x%lx>\" ", ip);
             continue;
           } else if (ret != -UNW_ENOINFO) {
             code++;
@@ -245,7 +253,7 @@ int main(int argc, char **argv) {
         /* We're not actually in the named procedure, but nearby.
            TODO: The printed address is wrong; it does not account for ASLR. */
         if (ip > info.end_ip) {
-          printf("\"<Native:0x%lx>\" ", ip);
+          fprintf(outfile, "\"<Native:0x%lx>\" ", ip);
           continue;
         }
 
@@ -264,7 +272,7 @@ int main(int argc, char **argv) {
           break;
         }
 
-        printf("\"<Native:%s>\" ", sym);
+        fprintf(outfile, "\"<Native:%s>\" ", sym);
       } while ((ret = unw_step(&uw_cursor)) > 0);
 
       if (ret < 0) {
@@ -281,9 +289,9 @@ int main(int argc, char **argv) {
         code++;
         goto done;
       } else if (ret == 0) {
-        printf("\"<TopLevel>\" ");
+        fprintf(outfile, "\"<TopLevel>\" ");
       } else {
-        printf("\"%s\" ", rsym);
+        fprintf(outfile, "\"%s\" ", rsym);
       }
     } while ((ret = xrprof_step(cursor)) > 0);
 
@@ -292,7 +300,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "fatal: Failed to step R stack cursor: %d.\n", ret);
       goto done;
     }
-    printf("\n");
+    fprintf(outfile, "\n");
 
     if ((code = proc_resume(proc)) < 0) {
       code = -code;

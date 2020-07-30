@@ -1,3 +1,8 @@
+# xrprof devel
+
+* The `-o` option can now be used to write the output directly to a file instead
+  of standard output.
+
 # xrprof 0.3.0
 
 * `xrprof` can now be built and run on Windows. (#3)

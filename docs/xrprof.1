@@ -9,6 +9,8 @@ xrprof \- profile R programs
 .IR FREQ ]
 .RB [ -d
 .IR DURATION ]
+.RB [ -o
+.IR FILE ]
 .B -p
 .I PID
 .SH DESCRIPTION
@@ -38,6 +40,11 @@ Set the duration for
 .B xrprof
 to take samples before exiting (provided the target program runs that
 long). The default is to last up to one hour.
+.TP
+.BR \-o " " \fIFILE\fR
+Write output to
+.I FILE
+instead of standard output.
 .TP
 .B \-m
 Run in \*(lqmixed mode\*(rq, where samples are drawn from both the
