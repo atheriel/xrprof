@@ -76,6 +76,7 @@ dist:
 	$(RM) -r $(DISTDIR)
 	sha256sum $(DISTDIR).tar.gz > $(DISTDIR).tar.gz.sha256
 
-distclean: clean
+distclean:
+	$(RM) $(BIN) $(BINOBJ) $(OBJ) $(SHLIB)
 
 .PHONY: all clean test install dist distclean
