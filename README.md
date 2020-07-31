@@ -98,6 +98,16 @@ $ stackcollapse-Rprof.R Rprof.out | flamegraph.pl > Rprof.svg
 
 ![Example FlameGraph](example-flamegraph.svg)
 
+## Running Under Docker
+
+A public Docker image is available at `atheriel/xrprof`. Since `xrprof` reads
+the memory of other running programs, it must be run as a privileged container
+in the host PID namespace. For example:
+
+```console
+$ docker run --privileged --pid=host -it atheriel/xrprof -p <PID>
+```
+
 ## Okay, How Does it Work?
 
 Much like other sampling profilers, the program uses Linux's `ptrace` system
