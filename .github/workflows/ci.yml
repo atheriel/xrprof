@@ -17,13 +17,9 @@ jobs:
       run: sudo apt-get install libelf-dev libunwind-dev
     - name: Build
       run: make
-    - name: Test
-      run: make test
   build-windows:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
     - name: Build
       run: make -f Makefile.win CC=gcc.exe
-    - name: Test
-      run: make -f Makefile.win CC=gcc.exe RSCRIPT="Rscript.exe" SUDO="" test
