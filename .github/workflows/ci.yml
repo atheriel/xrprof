@@ -15,17 +15,11 @@ jobs:
     - uses: actions/checkout@v2
     - name: Install Dependencies
       run: sudo apt-get install libelf-dev libunwind-dev
-    - name: Build
-      run: make
-    - name: Test
-      run: make test
+    - name: Build & Test
+      run: make && make test
   build-windows:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Build
-      run: make -f Makefile.win CC=gcc.exe
-    - name: Echo R Version
-      run: Rscript.exe --version
-    - name: Test
-      run: make -f Makefile.win RSCRIPT="Rscript.exe" SUDO="" test
+    - name: Build & Test
+      run: make -f Makefile.win CC=gcc.exe && make -f Makefile.win RSCRIPT="Rscript.exe" SUDO="" test
