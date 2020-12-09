@@ -1,7 +1,7 @@
 # xrprof
 
 <!-- badges: start -->
-
+![GitHub Actions CI Status](https://github.com/atheriel/xrprof/workflows/CI/badge.svg)
 [![travis-ci build
 status](https://travis-ci.org/atheriel/xrprof.svg?branch=master)](https://travis-ci.org/atheriel/xrprof)
 <!-- badges: end -->
