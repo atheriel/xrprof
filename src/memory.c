@@ -17,7 +17,7 @@ int phandle_init(phandle *out, void *data) {
   return 0;
 }
 
-size_t copy_address(phandle pid, void *addr, void *data, size_t len) {
+ssize_t copy_address(phandle pid, void *addr, void *data, size_t len) {
   struct iovec local[1];
   local[0].iov_base = data;
   local[0].iov_len = len;
@@ -37,7 +37,7 @@ size_t copy_address(phandle pid, void *addr, void *data, size_t len) {
 #elif defined(__WIN32)
 #include <windows.h> /* for ReadProcessMemory, GetLastError */
 
-size_t copy_address(phandle pid, void *addr, void *data, size_t len) {
+ssize_t copy_address(phandle pid, void *addr, void *data, size_t len) {
   if (!ReadProcessMemory(pid, addr, data, len, NULL)) {
     fprintf(stderr, "error: Failed to read memory in the remote process: %ld.\n",
             GetLastError());
@@ -55,7 +55,7 @@ int copy_context(phandle pid, void *addr, RCNTXT *data) {
   }
 
   size_t len = sizeof(RCNTXT);
-  size_t bytes = copy_address(pid, addr, data, len);
+  ssize_t bytes = copy_address(pid, addr, data, len);
   if (bytes < len) {
     return -2;
   }
@@ -69,7 +69,7 @@ int copy_sexp(phandle pid, void *addr, SEXP data) {
   }
 
   size_t len = sizeof(SEXPREC);
-  size_t bytes = copy_address(pid, addr, data, len);
+  ssize_t bytes = copy_address(pid, addr, data, len);
   if (bytes < len) {
     return -2;
   }
@@ -82,7 +82,8 @@ int copy_char(phandle pid, void *addr, char *data, size_t max_len) {
     return -1;
   }
   SEXPREC_ALIGN vec;
-  size_t len, bytes;
+  size_t len;
+  ssize_t bytes;
   void *str_addr = STDVEC_DATAPTR(addr);
 
   /* We need to do this is two passes. First, we read the VECSEXP data to get

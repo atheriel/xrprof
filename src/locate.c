@@ -135,7 +135,7 @@ int locate_libR_globals(phandle pid, struct libR_globals *out) {
   Elf64_Sym sym;
   char *symbol;
   uintptr_t value;
-  size_t bytes;
+  ssize_t bytes;
   for (int i = 0; i < shdr.sh_size / shdr.sh_entsize; i++) {
     gelf_getsym(data, i, &sym);
     symbol = elf_strptr(elf, shdr.sh_link, sym.st_name);
@@ -225,7 +225,7 @@ int locate_libR_globals(phandle pid, struct libR_globals *out) {
     }
 
     uintptr_t value;
-    size_t bytes;
+    ssize_t bytes;
     /* This is actually the crazy structure SymFromName uses. */
     struct {
       SYMBOL_INFO info;

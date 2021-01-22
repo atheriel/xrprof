@@ -117,8 +117,8 @@ int xrprof_get_fun_name(struct xrprof_cursor *cursor, char *buff, size_t len) {
 
 int xrprof_init(struct xrprof_cursor *cursor) {
   uintptr_t context_ptr;
-  size_t bytes = copy_address(cursor->pid, (void *)cursor->globals.context_addr,
-                              &context_ptr, sizeof(uintptr_t));
+  ssize_t bytes = copy_address(cursor->pid, (void *)cursor->globals.context_addr,
+                               &context_ptr, sizeof(uintptr_t));
   if (bytes < sizeof(uintptr_t)) {
     /* copy_address() will have already printed an error. */
     return -1;
