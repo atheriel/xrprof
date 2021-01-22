@@ -26,7 +26,7 @@ size_t copy_address(phandle pid, void *addr, void *data, size_t len) {
   remote[0].iov_base = addr;
   remote[0].iov_len = len;
 
-  size_t bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
+  ssize_t bytes = process_vm_readv(pid, local, 1, remote, 1, 0);
   if (bytes < 0) {
     perror("error: Failed to read memory in the remote process");
   } else if (bytes < len) {
