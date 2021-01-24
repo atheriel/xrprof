@@ -43,7 +43,7 @@ test: $(BIN)
 
 # Mostly compatible with https://www.gnu.org/prep/standards/html_node/Makefile-Conventions.html
 INSTALL = install
-prefix = /usr/local
+prefix ?= /usr/local
 bindir = $(prefix)/bin
 datadir = $(prefix)/share
 includedir = $(prefix)/include
