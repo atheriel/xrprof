@@ -1,7 +1,13 @@
-# xrprof devel
+# xrprof 0.3.1
 
 * The `-o` option can now be used to write the output directly to a file instead
   of standard output.
+
+* Fixes poor error handling when reading memory on Linux. (#15 by @jimhester)
+
+* Fixes incomplete support for `prefix` in the Makefile. (#16 by @eddelbuettel)
+
+* Git is no longer required to build from generated tarballs. (#17)
 
 # xrprof 0.3.0
 

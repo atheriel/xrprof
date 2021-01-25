@@ -1,4 +1,4 @@
-VERSION = 0.3.0
+VERSION = 0.3.1
 
 CFLAGS = -O2 -Wall -fPIC -mno-ms-bitfields -g
 LIBS = -lelf -lunwind-ptrace -lunwind-generic
