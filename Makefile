@@ -1,3 +1,5 @@
+VERSION = 0.3.0
+
 CFLAGS = -O2 -Wall -fPIC -mno-ms-bitfields -g
 LIBS = -lelf -lunwind-ptrace -lunwind-generic
 
@@ -61,7 +63,6 @@ install-shlib:
 	$(INSTALL) -T -m 0644 $(SHLIB) $(DESTDIR)$(libdir)/$(SHLIB)
 
 PACKAGE = $(BIN)
-VERSION := $(shell git describe --tags --always | sed 's/^v//g')
 DISTDIR = $(PACKAGE)-$(VERSION)
 
 dist:
