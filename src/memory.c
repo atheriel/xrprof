@@ -45,6 +45,12 @@ ssize_t copy_address(phandle pid, void *addr, void *data, size_t len) {
   }
   return len;
 }
+#elif defined(__MACH__) // macOS support.
+ssize_t copy_address(phandle task, void *addr, void *data, size_t len)
+{
+    fprintf(stderr, "error: macOS is not yet supported.\n");
+    return -1;
+}
 #else
 #error "No support for this platform."
 #endif
