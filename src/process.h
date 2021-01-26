@@ -3,11 +3,9 @@
 
 #ifdef __WIN32
 typedef void * phandle;
-#elif defined(__unix)
+#else
 #include <unistd.h>  /* for pid_t */
 typedef pid_t phandle;
-#else
-#error "No support for this platform."
 #endif
 
 int proc_create(phandle *out, void *data);

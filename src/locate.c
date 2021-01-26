@@ -317,6 +317,12 @@ remote process's memory. Are you sure it is an R program?\n");
   proc_resume(pid);
   return -1;
 }
+#elif defined(__MACH__) // macOS support.
+int locate_libR_globals(phandle pid, struct libR_globals *out)
+{
+    fprintf(stderr, "error: macOS is not yet supported.\n");
+    return -1;
+}
 #else
-#error "No support for non-Linux platforms."
+#error "No support for this platform."
 #endif

@@ -128,6 +128,30 @@ int proc_destroy(phandle pid) {
   }
   return 0;
 }
+#elif defined(__MACH__) // macOS support.
+int proc_create(phandle *out, void *data)
+{
+  pid_t *pid = (pid_t *) data;
+  *out = *pid;
+  return 0;
+}
+
+int proc_suspend(phandle pid)
+{
+  fprintf(stderr, "warning: Processes will not be suspended/resumed on macOS.\n");
+  return 0;
+}
+
+int proc_resume(phandle pid)
+{
+  fprintf(stderr, "warning: Processes will not be suspended/resumed on macOS.\n");
+  return 0;
+}
+
+int proc_destroy(phandle pid)
+{
+  return 0;
+}
 #else
-#error "No support for non-Linux platforms."
+#error "No support for this platform."
 #endif
