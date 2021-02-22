@@ -1,6 +1,6 @@
 VERSION = 0.3.1
 
-CFLAGS = -O2 -Wall -fPIC -mno-ms-bitfields -g -std=gnu99
+CFLAGS = -O2 -Wall -fPIC -g -std=gnu99
 LIBS = -lelf -lunwind-ptrace -lunwind-generic
 
 BIN = xrprof
