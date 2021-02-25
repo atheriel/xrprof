@@ -44,12 +44,14 @@ compile the program. For example, on Debian-based systems (including Ubuntu),
 you can install these with
 
 ```console
-$ sudo apt-get install libelf-dev libunwind-dev
+$ sudo apt-get install libelf-dev libunwind-dev libcap2-bin
 ```
 
 A simple `Makefile` is provided. Build the binary with
 
 ```console
+$ git clone https://github.com/atheriel/xrprof
+$ cd xrprof
 $ make
 ```
 
@@ -71,6 +73,8 @@ R's own [Rtools for Windows](https://cran.r-project.org/bin/windows/Rtools/)
 then run
 
 ```console
+$ git clone https://github.com/atheriel/xrprof
+$ cd xrprof
 $ make -f Makefile.win
 ```
 
