@@ -84,6 +84,7 @@
 #
 # CDDL HEADER END
 #
+# 18-Mar-2020	Aaron Jacobs	Added R and xrprof-related functionality.
 # 11-Oct-2014	Adrien Mahieux	Added zoom.
 # 21-Nov-2013   Shawn Sterling  Added consistent palette file option
 # 17-Mar-2013   Tim Bunce       Added options and more tunables.
@@ -398,6 +399,16 @@ sub color {
 	}
 
 	# multi palettes
+	if (defined $type and $type eq "R") {
+		if ($name =~ /::/ and $name =~ m:_\[n\]$:) {	# C++
+			$type = "yellow";
+		} elsif ($name =~ m:_\[n\]$:) {	# C or other native
+			$type = "orange";
+		} else { # R
+			$type = "aqua";
+		}
+		# fall-through to color palettes
+	}
 	if (defined $type and $type eq "java") {
 		# Handle both annotations (_[j], _[i], ...; which are
 		# accurate), as well as input that lacks any annotations, as
@@ -1137,7 +1148,7 @@ while (my ($id, $node) = each %Node) {
 		$escaped_func =~ s/</&lt;/g;
 		$escaped_func =~ s/>/&gt;/g;
 		$escaped_func =~ s/"/&quot;/g;
-		$escaped_func =~ s/_\[[kwij]\]$//;	# strip any annotation
+		$escaped_func =~ s/_\[[kwijn]\]$//;	# strip any annotation
 		unless (defined $delta) {
 			$info = "$escaped_func ($samples_txt $countname, $pct%)";
 		} else {
@@ -1169,7 +1180,7 @@ while (my ($id, $node) = each %Node) {
 	my $chars = int( ($x2 - $x1) / ($fontsize * $fontwidth));
 	my $text = "";
 	if ($chars >= 3) { # room for one char plus two dots
-		$func =~ s/_\[[kwij]\]$//;	# strip any annotation
+		$func =~ s/_\[[kwijn]\]$//;	# strip any annotation
 		$text = substr $func, 0, $chars;
 		substr($text, -2, 2) = ".." if $chars < length $func;
 		$text =~ s/&/&amp;/g;
