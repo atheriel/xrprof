@@ -15,6 +15,71 @@
 #ifdef __linux
 #define HAVE_LIBUNWIND
 #include <libunwind-ptrace.h>
+
+#define MAX_LIB_PATH_LEN 1024
+
+static int write_proc_maps_files(pid_t pid, FILE *outfile, uintptr_t *libs,
+                                 size_t *count)
+{
+  char maps_file[32];
+  snprintf(maps_file, sizeof(maps_file), "/proc/%d/maps", pid);
+  FILE *file = fopen(maps_file, "r");
+  if (!file) {
+    char msg[51]; // 19 for the message + 32 for the buffer above.
+    snprintf(msg, 51, "error: Cannot open %s", maps_file);
+    perror(msg);
+    return -1;
+  }
+
+  char buffer[1024];
+  char path[MAX_LIB_PATH_LEN];
+  char *lib;
+  uintptr_t addr = 0;
+  int index = 0;
+  while (fgets(buffer, sizeof(buffer), file)) {
+    if (strstr(buffer, "r-xp")) {
+      lib = strstr(buffer, "/");
+      if (!lib) {
+        continue;
+      }
+      snprintf(path, MAX_LIB_PATH_LEN, "%s", lib);
+
+      /* Remove the trailing '\n'. */
+      char *linebreak = strstr(path, "\n");
+      if (linebreak) {
+        *linebreak = '\0';
+      }
+
+      /* Extract the address. */
+      libs[index] = (uintptr_t) strtoul(buffer, NULL, 16);
+      fprintf(outfile, "#File %d: %s\n", index + 1, path);
+      index++;
+
+      /* Store the end address. */
+      if (strstr(buffer, "-")) {
+        addr = (uintptr_t) strtoul(strstr(buffer, "-"), NULL, 16);
+      }
+    }
+  }
+  *count = index + 1;
+  libs[index] = addr;
+  /* If we get an address beyond the end of loaded libraries, it's probably
+     somewhere in the stack, vvar, vdso, vsyscall section. */
+  libs[index + 1] = 0;
+
+  fclose(file);
+  return 0;
+}
+
+int lib_for_ip(unw_word_t ip, uintptr_t *libs, size_t count) {
+  int i = 0;
+  for (i = 0; i < count; i++) {
+    if (ip < libs[i]) {
+      return i - 1;
+    }
+  }
+  return -1; /* It's beyond the last entry. */
+}
 #endif
 
 #include "cursor.h"
@@ -190,8 +255,21 @@ int main(int argc, char **argv) {
 
   float elapsed = 0;
 
+#ifdef HAVE_LIBUNWIND
+  // Write the Rprof.out header, indicating that we have line information.
+  fprintf(outfile, "line profiling: sample.interval=%d\n", 1000000 / freq);
+
+  /* Create fake srcref "file" entries for libraries. */
+  uintptr_t libs[1024];
+  size_t lib_count = 0;
+  if ((code = write_proc_maps_files(pid, outfile, libs, &lib_count)) < 0) {
+    fprintf(stderr, "fatal: Failed write proc/maps entries: %d.\n", code);
+    return -code;
+  }
+#else
   // Write the Rprof.out header.
   fprintf(outfile, "sample.interval=%d\n", 1000000 / freq);
+#endif
 
   while (should_trace && elapsed <= duration) {
     if ((code = proc_suspend(proc)) < 0) {
@@ -218,8 +296,10 @@ int main(int argc, char **argv) {
       goto done;
     } else if (mixed_mode) {
       char sym[256];
+      char srcref[32];
       unw_word_t offset, ip;
       unw_proc_info_t info;
+      int lib;
 
       do {
         sym[0] = '\0';
@@ -237,9 +317,16 @@ int main(int argc, char **argv) {
           goto done;
         }
 
+        lib = lib_for_ip(ip, libs, lib_count);
+        if (lib >= 0) {
+          snprintf(srcref, 32, "%d#0x%lx ", lib + 1, ip - libs[lib]);
+        } else {
+          srcref[0] = '\0';
+        }
+
         if ((ret = unw_get_proc_name(&uw_cursor, sym, sizeof(sym), &offset)) < 0) {
           if (ret == -UNW_EUNSPEC || ret == -UNW_ENOINFO) {
-            fprintf(outfile, "\"<Native:0x%lx>\" ", ip);
+            fprintf(outfile, "%s\"<Native:0x%lx>\" ", srcref, ip);
             continue;
           } else if (ret != -UNW_ENOINFO) {
             code++;
@@ -253,7 +340,7 @@ int main(int argc, char **argv) {
         /* We're not actually in the named procedure, but nearby.
            TODO: The printed address is wrong; it does not account for ASLR. */
         if (ip > info.end_ip) {
-          fprintf(outfile, "\"<Native:0x%lx>\" ", ip);
+          fprintf(outfile, "%s\"<Native:0x%lx>\" ", srcref, ip);
           continue;
         }
 
@@ -272,7 +359,7 @@ int main(int argc, char **argv) {
           break;
         }
 
-        fprintf(outfile, "\"<Native:%s>\" ", sym);
+        fprintf(outfile, "%s\"<Native:%s>\" ", srcref, sym);
       } while ((ret = unw_step(&uw_cursor)) > 0);
 
       if (ret < 0) {
