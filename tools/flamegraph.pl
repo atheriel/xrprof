@@ -400,12 +400,14 @@ sub color {
 
 	# multi palettes
 	if (defined $type and $type eq "R") {
-		if ($name =~ /::/ and $name =~ m:_\[n\]$:) {	# C++
+		if (($name =~ m/^_Z/ or $name =~ /::/) and $name =~ m:_\[n\]:) {	# C++
 			$type = "yellow";
-		} elsif ($name =~ m:_\[n\]$:) {	# C or other native
-			$type = "orange";
+    } elsif ($name =~ m:^Rf?_: and $name =~ m:_\[n\]:) { # Much of R's API
+        $type = "orange";
+		} elsif ($name =~ m:_\[n\]:) {	# C or other native
+			$type = "red";
 		} else { # R
-			$type = "aqua";
+			$type = "green";
 		}
 		# fall-through to color palettes
 	}
