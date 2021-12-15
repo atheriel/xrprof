@@ -46,10 +46,20 @@ ssize_t copy_address(phandle pid, void *addr, void *data, size_t len) {
   return len;
 }
 #elif defined(__MACH__) // macOS support.
-ssize_t copy_address(phandle task, void *addr, void *data, size_t len)
+ssize_t copy_address(phandle p, void *addr, void *data, size_t len)
 {
-    fprintf(stderr, "error: macOS is not yet supported.\n");
+  vm_size_t bytes = 0;
+  kern_return_t ret = vm_read_overwrite(p.task, (vm_address_t) addr, len,
+                                        (vm_address_t) data, &bytes);
+  if (ret != KERN_SUCCESS) {
+    fprintf(stderr, "error: Failed to read memory in the remote process: %s.",
+           mach_error_string(ret));
     return -1;
+  } else if (bytes < len) {
+    fprintf(stderr, "error: Partial read of memory in remote process.\n");
+    return -1;
+  }
+  return (ssize_t) bytes;
 }
 #else
 #error "No support for this platform."

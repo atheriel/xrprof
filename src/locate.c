@@ -318,10 +318,178 @@ remote process's memory. Are you sure it is an R program?\n");
   return -1;
 }
 #elif defined(__MACH__) // macOS support.
-int locate_libR_globals(phandle pid, struct libR_globals *out)
-{
-    fprintf(stderr, "error: macOS is not yet supported.\n");
+#include <mach/mach_vm.h>       /* for mach_vm_read_overwrite */
+#include <mach-o/dyld_images.h> /* for dyld_all_image_infos */
+#include <mach-o/loader.h>      /* for MH_EXECUTE, MH_DYLIB */
+#include <mach-o/nlist.h>       /* for nlist */
+#include <sys/param.h>          /* for MAXPATHLEN */
+#include <stdlib.h>             /* for calloc, free */
+
+static int find_libR(phandle p, char *path, uintptr_t *addr) {
+  kern_return_t ret;
+  mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
+  task_dyld_info_data_t info = {0};
+  ret = task_info(p.task, TASK_DYLD_INFO, (task_info_t) &info, &count);
+  if (ret != KERN_SUCCESS) {
+    fprintf(stderr, "error: Failed to query remote task info: %s (%d).\n",
+            mach_error_string(ret), ret);
     return -1;
+  }
+
+  struct dyld_all_image_infos images_info = {0};
+  if (copy_address(p, (void *) info.all_image_info_addr, (void *) &images_info,
+                   sizeof(images_info)) < 0) {
+    return -1;
+  }
+
+  struct dyld_image_info images[images_info.infoArrayCount];
+  if (copy_address(p, (void *) images_info.infoArray, (void *) &images,
+                   images_info.infoArrayCount * sizeof(struct dyld_image_info)) < 0) {
+    return -1;
+  }
+
+  size_t bytes;
+  char fname[MAXPATHLEN + 1];
+  for (int i = 0; i < images_info.infoArrayCount; i++) {
+    if (copy_address(p, (void *) images[i].imageFilePath, (void *) &fname,
+                     MAXPATHLEN) < 0) {
+      return -1;
+    }
+    bytes = strnlen(fname, MAXPATHLEN);
+    if (bytes <= 0) {
+      continue;
+    }
+    /* To catch cases where we're not linked against libR, default to the first
+       entry (which is the executable itself). */
+    if (i == 0 || strstr(fname, "libR")) {
+      *addr = (uintptr_t) images[i].imageLoadAddress;
+      memcpy(path, fname, bytes);
+      path[bytes] = '\0';
+      if (i != 0) {
+        /* We found libR. */
+        return 0;
+      }
+    }
+  }
+
+  return 0;
+}
+
+int locate_libR_globals(phandle p, struct libR_globals *out) {
+  char path[MAXPATHLEN + 1];
+  uintptr_t remote = 0;
+  if (find_libR(p, path, &remote) < 0) {
+    return -1;
+  }
+
+  /* TODO: mmap() this into memory instead of reading the whole thing into a
+     buffer. */
+  FILE *file = fopen(path, "rb");
+  if (!file) {
+    char msg[MAXPATHLEN];
+    snprintf(msg, MAXPATHLEN, "error: Cannot open %s", path);
+    perror(msg);
+    return -1;
+  }
+  fseek(file, 0L, SEEK_END);
+  size_t bytes = ftell(file);
+  char *buffer = calloc(bytes, 1);
+  if (!buffer) {
+    return -1;
+  }
+  fseek(file, 0L, SEEK_SET);
+  fread(buffer, 1, bytes, file);
+  fclose(file);
+
+  struct mach_header_64 *hdr = (struct mach_header_64 *) buffer;
+  if (hdr->magic != MH_MAGIC_64) {
+    fprintf(stderr, "error: Unsupported Mach-O magic number: 0x%x.\n",
+            hdr->magic);
+    return -1;
+  }
+  if (hdr->filetype != MH_EXECUTE && hdr->filetype != MH_DYLIB) {
+    fprintf(stderr, "error: Unexpected Mach-O header filetype: 0x%x.\n",
+            hdr->filetype);
+    return -1;
+  }
+
+  /* Loop over the segments to find the symbol table. */
+
+  uintptr_t offset = sizeof(struct mach_header_64);
+  uintptr_t strtab_offset = 0;
+  struct segment_command_64 *seg;
+  for (int i = 0; i < hdr->ncmds; i++) {
+    seg = (struct segment_command_64 *) (buffer + offset);
+    /* Handle cases where the base address might be moved. */
+    if (seg->cmd == LC_SEGMENT_64) {
+      if (strstr(seg->segname, "__TEXT")) {
+        strtab_offset -= seg->vmaddr;
+      }
+      offset += seg->cmdsize;
+      continue;
+    }
+    if (seg->cmd != LC_SYMTAB) {
+      offset += seg->cmdsize;
+      continue;
+    }
+
+    /* We've found the symbol table, which records offsets to an array of
+       symbols entries (as nlist_64 structures) as well as the a blob of
+       null-terminated strings, including the actual human-readable symbols. */
+
+    struct symtab_command *symtab = (struct symtab_command *) seg;
+    struct nlist_64 *symbols = (struct nlist_64 *) (buffer + symtab->symoff);
+    char* strings = (char *) (buffer + strtab_offset + symtab->stroff);
+    char *symbol;
+    uintptr_t value;
+    for (int j = 0; j < symtab->nsyms; j++) {
+      /* Skip symbols equivalent to the empty string (which seems to happen
+         sometimes) and symbols with no corresponding address. These are
+         irrelevant. */
+      if (symbols[j].n_un.n_strx == 0 || symbols[j].n_value == 0) {
+        continue;
+      }
+      /* Avoid reading random, potentially-non-string memory. This should never
+         happen (tm). */
+      if (symbols[j].n_un.n_strx > symtab->strsize) {
+        continue;
+      }
+      symbol = strings + symbols[j].n_un.n_strx;
+      /* In Mach-O binaries, symbols are prefixed with an underscore vis a vis
+         their C equivalents. */
+      if (strncmp("_R_GlobalContext", symbol, 16) == 0) {
+        out->context_addr = remote + symbols[j].n_value;
+      } else if (strncmp("_R_DoubleColonSymbol", symbol, 20) == 0) {
+        bytes = copy_address(p, (void *) remote + symbols[j].n_value, &value,
+                             sizeof(uintptr_t));
+        out->doublecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+      } else if (strncmp("_R_TripleColonSymbol", symbol, 20) == 0) {
+        bytes = copy_address(p, (void *) remote + symbols[j].n_value, &value,
+                             sizeof(uintptr_t));
+        out->triplecolon = bytes < sizeof(uintptr_t) ? 0 : value;
+      } else if (strncmp("_R_DollarSymbol", symbol, 15) == 0) {
+        bytes = copy_address(p, (void *) remote + symbols[j].n_value, &value,
+                             sizeof(uintptr_t));
+        out->dollar = bytes < sizeof(uintptr_t) ? 0 : value;
+      } else if (strncmp("_R_BracketSymbol", symbol, 16) == 0) {
+        bytes = copy_address(p, (void *) remote + symbols[j].n_value, &value,
+                             sizeof(uintptr_t));
+        out->bracket = bytes < sizeof(uintptr_t) ? 0 : value;
+      }
+    }
+
+    break;
+  }
+
+  if (!out->doublecolon || !out->triplecolon || !out->dollar || !out->bracket ||
+      !out->context_addr) {
+    fprintf(stderr, "error: Failed to locate required R global variables in "
+            "process %d's memory. Are you sure it is an R program?\n", p.pid);
+    return -1;
+  }
+
+  free(buffer);
+  return 0;
 }
 #else
 #error "No support for this platform."

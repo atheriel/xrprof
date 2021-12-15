@@ -131,20 +131,31 @@ int proc_destroy(phandle pid) {
 #elif defined(__MACH__) // macOS support.
 int proc_create(phandle *out, void *data)
 {
-  pid_t *pid = (pid_t *) data;
-  *out = *pid;
+  out->pid = *((pid_t *) data);
+  /* TODO: This will also fail with error 5 if the PID does not exist; we could
+     try to detect that as well. */
+  kern_return_t ret = task_for_pid(mach_task_self(), out->pid, &out->task);
+  if (ret == 5) {
+    fprintf(stderr, "fatal: Failed to query process %d -- you may need to use "
+            "sudo.\n", out->pid);
+    return -1;
+  }
+  if (ret != KERN_SUCCESS) {
+    fprintf(stderr, "fatal: Failed to query process %d: %s (%d).\n", out->pid,
+            mach_error_string(ret), ret);
+    return -1;
+  }
+  fprintf(stderr, "warning: Processes will not be suspended/resumed on macOS.\n");
   return 0;
 }
 
 int proc_suspend(phandle pid)
 {
-  fprintf(stderr, "warning: Processes will not be suspended/resumed on macOS.\n");
   return 0;
 }
 
 int proc_resume(phandle pid)
 {
-  fprintf(stderr, "warning: Processes will not be suspended/resumed on macOS.\n");
   return 0;
 }
 
