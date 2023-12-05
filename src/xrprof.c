@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
       code++;
       goto done;
     } else if (mixed_mode) {
-      char sym[256];
+      char sym[1024];
       unw_word_t offset, ip;
       unw_proc_info_t info;
 
